@@ -8,6 +8,27 @@
     content="width=device-width, initial-scale=1.0"
   >
   <title>QRスキャナー</title>
+
+  <style>
+    body {
+      padding: 20px;
+      font-family: sans-serif;
+    }
+
+    video {
+      display: block;
+      width: 100%;
+      max-width: 500px;
+      margin-top: 20px;
+      backfround-color: #000;
+    }
+
+    #message{
+      font-weight: bold;
+      while-space: pre-wrap;
+    }
+    
+  </style>
 </head>
 
   <body>
@@ -17,11 +38,99 @@
       Github Pagesの公開確認中です。
     </p>
 
+    <video
+      id="camera"
+      autoplaty
+      playsinline
+      muted
+    ></video>
+
     <script>
-      documen
-        .getElementById("message")
-        .textContent = 
-          "HTMLとJavaScriptは正常に動いています。";
+      let cameraStream = null;
+
+      async funtion startCamera()
+      {
+        const message = document.getElementById("message");
+
+        const video = document.getElementById("camera");
+
+        if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
+        {
+          message.textContent = "このブラウザではカメラ機能を使用できません";
+          return;
+        }
+
+        /*
+         * 二重起動防止
+         */
+        stopCamera();
+
+        message.textContent = "カメラを起動しています...";
+
+        try
+        {
+          cameraStream = 
+            await navigator
+              .mediaDevices
+              .getUserMedia({
+                video: {
+                  facingMode: {
+                    ideal: "environment"
+                  }
+                },
+
+                audio: false
+              });
+
+            videoUserObject = cameraStream;
+
+            await video.play();
+
+            message.textContent = "カメラを起動しました。";
+
+        }
+        catch(error)
+        {
+          console.error(
+            "[StartCamera]", error);
+
+          message.textContent = "カメラを起動できませんでした。\n" + "エラー名: " + error.name + "\n" + "詳細: " + error.message;
+        }
+      }
+
+      function stopCamera()
+      {
+        if(cameraStream !== null)
+        {
+          cameraStream
+            .getTracks()
+            .forEach(
+              function(track)
+              {
+                track.stop();
+              }
+            );
+
+          cameraStream = null;
+
+        }
+      const video = document.getElementById("camera");
+
+      video.srcObject = null;
+
+      document.getElementById("message").textContent = "カメラは停止中です";
+
+      }
+
+    /* 
+     * ぺージから離れる際もカメラを停止する。
+     */
+
+      window.addEventListener(
+        "pagehide",
+        stopCamera
+      );
+        
     </script>
   </body>
 </html>
