@@ -183,7 +183,7 @@
           const devices = await navigator.mediaDevices.enumerateDevices();
 
           const cameras = 
-            devices.filter(function(device){
+            devices.filter(function(device)
               {
                 return device.kind === "videoinput"
               });
@@ -217,7 +217,7 @@
           + error.name
           + ": "
           + error.message;
-        ]   
+        }   
       }
     </script>
   </body>
