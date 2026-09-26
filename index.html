@@ -164,7 +164,8 @@
       {
         const message = document.getElementById("camera_select");
 
-        try{
+        try
+        {
           const temporaryStream = 
             await navigator.mediaDevices
               .getUserMedia({
@@ -184,7 +185,7 @@
           const cameras = 
             devices.filter(function(device){
               {
-                return device.kind === "videoinput";
+                return device.kind === "videoinput"
               });
 
           cameraSelect.innerHTML = 
