@@ -34,6 +34,18 @@
   <body>
     <h1>1S QRスキャナー</h1>
 
+    <p 使用するカメラ></p>
+
+    <select id="camera_select">
+      <option value="">
+        カメラを選択してください
+      </option>
+    </select>
+
+    <button onclick="loadCameras()">
+      カメラ一覧を取得
+    </button>
+
     <button onclick="startCamera()">
       カメラを起動する
     </button>
@@ -77,13 +89,22 @@
 
         try
         {
+          const selectedDeviceId = document.getElementById("camera_select").value;
+
+          if(selectedDeviceId === "")
+          {
+            message.textContent = "使用するカメラを選択してください";
+
+            return;
+          }
+          
           cameraStream = 
             await navigator
               .mediaDevices
               .getUserMedia({
                 video: {
-                  facingMode: {
-                    ideal: "environment"
+                  deviceId: {
+                    exact: selectedDeviceId
                   }
                 },
 
@@ -138,7 +159,65 @@
         "pagehide",
         stopCamera
       );
-        
+
+      async function loadCameras()
+      {
+        const message = document.getElementById("camera_select");
+
+        try{
+          const temporaryStream = 
+            await navigator.mediaDevices
+              .getUserMedia({
+                video: true,
+                audio: false
+              });
+
+          temporaryStream
+            .getTracks()
+            .forEach(function(track)
+                     {
+                       track.stop();
+                     });
+
+          const devices = await navigator.mediaDevices.enumerateDevices();
+
+          const cameras = 
+            devices.filter(function(device){
+              {
+                return device.kind === "videoinput";
+              });
+
+          cameraSelect.innerHTML = 
+            '<option value="">'
+            + 'カメラを選択してください'
+            + '</option>';
+
+          cameras.forEach(function(camera, index)
+                          {
+                            const option = document.createElement("option");
+
+                            option.value = camera.deviceId;
+
+                            option.textContent = camera.label || "カメラ " + (index + 1);
+
+                            cameraSelect.appendChild(option);
+                          });
+
+          message.textContent = cameras.length + "台のカメラを検出しました。";
+        }
+        catch(error)
+        {
+          console.error(
+            "[loadCameras]", 
+            error
+          );
+
+          message.textContent = "カメラ一覧を取得できませんでした。\n"
+          + error.name
+          + ": "
+          + error.message;
+        ]   
+      }
     </script>
   </body>
 </html>
