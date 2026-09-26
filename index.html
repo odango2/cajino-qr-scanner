@@ -20,12 +20,12 @@
       width: 100%;
       max-width: 500px;
       margin-top: 20px;
-      backfround-color: #000;
+      background-color: #000;
     }
 
     #message{
       font-weight: bold;
-      while-space: pre-wrap;
+      white-space: pre-wrap;
     }
     
   </style>
@@ -48,7 +48,7 @@
 
     <video
       id="camera"
-      autoplaty
+      autoplay
       playsinline
       muted
     ></video>
@@ -90,7 +90,7 @@
                 audio: false
               });
 
-            videoUserObject = cameraStream;
+            video.srcObject = cameraStream;
 
             await video.play();
 
