@@ -1,298 +1,58 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head>
-  <meta charset="UTF-8">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Kajino-QRcode-ver10.0</title>
 
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
+        <style>
+            body {
+            padding: 16px;
+            font-family: sans-serif;
+            }
+             
+            button {
+            width: 100%;
+            max-width: 500px;
+            min-height: 48px;
+            }
+             
+             
+            #QR_QRcode_reader_camera_status {
+            white-space: pre-wrap;
+            }
+             
+            #QR_QRcode_reader_result {
+            overflow-wrap: anywhere;
+            }
+            #QR_QRcode_reader {
+            width: 100%;
+            max-width: 500px;
+            min-height: 300px;
+            border: 2px solid black;
+            box-sizing: border-box;
+            overflow: hidden;
+            }
+        </style>
+    </head>
 
-  <title>QRスキャナー</title>
+    <body>
+        <h1>1S QRコードスキャナー</h1>
+        <section>
+            <h3>QRコードリーダー</h3>
+            <p id="QR_QRcode_reader_camera_status"></p>
+            <select id="QR_QRcode_reader_camera_select">
+                <option value="">カメラを選択してください</option>
+            </select>
+            <button id="QR_QRcode_reader_camera_reload_button" type="button">カメラ情報等を取得・更新</button>
+            <button id="QR_QRcode_reader_button" type="button"></button>
+            <p id="QR_QRcode_reader_result">読み取り結果：対象QRコードをかざしてください.</p>
+            <div id="QR_QRcode_reader"></div>
 
-  <style>
-    body {
-      padding: 20px;
-      font-family: sans-serif;
-    }
-
-    video {
-      display: block;
-      width: 100%;
-      max-width: 500px;
-      margin-top: 20px;
-      background-color: #000;
-    }
-
-    #message {
-      font-weight: bold;
-      white-space: pre-wrap;
-    }
-  </style>
-</head>
-
-<body>
-  <h1>1S QRスキャナー</h1>
-
-  <p>使用するカメラ</p>
-
-  <select id="camera_select">
-    <option value="">
-      カメラを選択してください
-    </option>
-  </select>
-
-  <button onclick="loadCameras()">
-    カメラ一覧を取得
-  </button>
-
-  <button onclick="startCamera()">
-    カメラを起動する
-  </button>
-
-  <button onclick="stopCamera()">
-    カメラを停止
-  </button>
-
-  <p id="message">
-    カメラは停止中です。
-  </p>
-
-  <video
-    id="camera"
-    autoplay
-    playsinline
-    muted
-  ></video>
-
-  <script>
-    let cameraStream = null;
-
-
-    async function startCamera()
-    {
-      const message =
-        document.getElementById("message");
-
-      const video =
-        document.getElementById("camera");
-
-      const cameraSelect =
-        document.getElementById(
-          "camera_select"
-        );
-
-      if(
-        !navigator.mediaDevices
-        ||
-        !navigator.mediaDevices.getUserMedia
-      )
-      {
-        message.textContent =
-          "このブラウザではカメラ機能を使用できません。";
-
-        return;
-      }
-
-      /*
-       * 二重起動防止
-       */
-      stopCamera();
-
-      const selectedDeviceId =
-        cameraSelect.value;
-
-      if(selectedDeviceId === "")
-      {
-        message.textContent =
-          "使用するカメラを選択してください。";
-
-        return;
-      }
-
-      message.textContent =
-        "カメラを起動しています...";
-
-      try
-      {
-        cameraStream =
-          await navigator.mediaDevices
-            .getUserMedia({
-              video: {
-                deviceId: {
-                  exact: selectedDeviceId
-                }
-              },
-
-              audio: false
-            });
-
-        video.srcObject =
-          cameraStream;
-
-        await video.play();
-
-        message.textContent =
-          "カメラを起動しました。";
-      }
-      catch(error)
-      {
-        console.error(
-          "[startCamera]",
-          error
-        );
-
-        message.textContent =
-          "カメラを起動できませんでした。\n"
-          + "エラー名: "
-          + error.name
-          + "\n"
-          + "詳細: "
-          + error.message;
-      }
-    }
-
-
-    function stopCamera()
-    {
-      if(cameraStream !== null)
-      {
-        cameraStream
-          .getTracks()
-          .forEach(function(track)
-          {
-            track.stop();
-          });
-
-        cameraStream = null;
-      }
-
-      const video =
-        document.getElementById("camera");
-
-      video.srcObject = null;
-
-      document
-        .getElementById("message")
-        .textContent =
-          "カメラは停止中です。";
-    }
-
-
-    /*
-     * カメラ一覧を取得する。
-     */
-    async function loadCameras()
-    {
-      const message =
-        document.getElementById("message");
-
-      const cameraSelect =
-        document.getElementById(
-          "camera_select"
-        );
-
-      if(
-        !navigator.mediaDevices
-        ||
-        !navigator.mediaDevices.getUserMedia
-      )
-      {
-        message.textContent =
-          "このブラウザではカメラ機能を使用できません。";
-
-        return;
-      }
-
-      message.textContent =
-        "カメラ一覧を取得しています...";
-
-      try
-      {
-        /*
-         * カメラ名を取得できるように、
-         * 一度カメラ利用権限を要求する。
-         */
-        const temporaryStream =
-          await navigator.mediaDevices
-            .getUserMedia({
-              video: true,
-              audio: false
-            });
-
-        temporaryStream
-          .getTracks()
-          .forEach(function(track)
-          {
-            track.stop();
-          });
-
-        const devices =
-          await navigator.mediaDevices
-            .enumerateDevices();
-
-        const cameras =
-          devices.filter(function(device)
-          {
-            return device.kind
-              === "videoinput";
-          });
-
-        cameraSelect.innerHTML =
-          '<option value="">'
-          + 'カメラを選択してください'
-          + '</option>';
-
-        cameras.forEach(
-          function(camera, index)
-          {
-            const option =
-              document.createElement(
-                "option"
-              );
-
-            option.value =
-              camera.deviceId;
-
-            option.textContent =
-              camera.label
-              || "カメラ "
-              + (index + 1);
-
-            cameraSelect.appendChild(
-              option
-            );
-          }
-        );
-
-        message.textContent =
-          cameras.length
-          + "台のカメラを検出しました。";
-      }
-      catch(error)
-      {
-        console.error(
-          "[loadCameras]",
-          error
-        );
-
-        message.textContent =
-          "カメラ一覧を取得できませんでした。\n"
-          + error.name
-          + ": "
-          + error.message;
-      }
-    }
-
-
-    /*
-     * ページから離れる際も
-     * カメラを停止する。
-     */
-    window.addEventListener(
-      "pagehide",
-      stopCamera
-    );
-  </script>
-</body>
+            <!-- ライブラリ -->
+            <script src='QR_QRcode_reader_Library.js'></script>
+            <!-- JSファイル-->
+            <script src='Kajino-QRcode-Reader.js'></script>
+        </section>
+    </body>
 </html>
