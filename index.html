@@ -168,7 +168,7 @@
     </p>
 
     <p id="QR_script_status">
-      QRライブラリを読み込んでいます。
+      JavaScriptを読み込んでいます。
     </p>
 
     <p id="QR_QRcode_reader_camera_status"></p>
@@ -182,7 +182,6 @@
     <button
       id="QR_QRcode_reader_camera_reload_button"
       type="button"
-      disabled
     >
       カメラ情報を取得・更新
     </button>
@@ -276,114 +275,58 @@
     </form>
   </section>
 
+  ./QR_QRcode_reader_Library.js?v=9textContent =
+        'QRライブラリを読み込めませんでした。';
+      document.getElementById('QR_script_status').style.color =
+        'red';
+    "
+  ></script>
+
+  ./Kajino-QRcode-Reader.js?v=9textContent =
+        'QR制御JavaScriptを読み込めませんでした。';
+      document.getElementById('QR_script_status').style.color =
+        'red';
+    "
+  ></script>
+
   <script>
-    "use strict";
-
-    function loadExternalScript(
-      sourceUrl
-    )
-    {
-      return new Promise(
-        function(resolve, reject)
-        {
-          const script =
-            document.createElement(
-              "script"
-            );
-
-          script.src =
-            sourceUrl;
-
-          script.async =
-            false;
-
-          script.addEventListener(
-            "load",
-            function()
-            {
-              resolve(
-                sourceUrl
-              );
-            }
-          );
-
-          script.addEventListener(
-            "error",
-            function()
-            {
-              reject(
-                new Error(
-                  "読み込めませんでした: "
-                  + sourceUrl
-                )
-              );
-            }
-          );
-
-          document.body.appendChild(
-            script
-          );
-        }
-      );
-    }
-
-
-    async function initializeQrScripts()
-    {
-      const statusArea =
-        document.getElementById(
-          "QR_script_status"
-        );
-
-      const startButton =
-        document.getElementById(
-          "QR_QRcode_reader_button"
-        );
-
-      const reloadButton =
-        document.getElementById(
-          "QR_QRcode_reader_camera_reload_button"
-        );
-
-      try
+    window.addEventListener(
+      "load",
+      function()
       {
-        statusArea.textContent =
-          "QRライブラリを読み込んでいます...";
-
-        statusArea.style.color =
-          "black";
-
-        await loadExternalScript(
-          "https://cdnjs.cloudflare.com/ajax/libs/"
-          + "html5-qrcode/2.3.8/"
-          + "html5-qrcode.min.js"
-        );
+        const statusArea =
+          document.getElementById(
+            "QR_script_status"
+          );
 
         if(
           typeof Html5Qrcode
           === "undefined"
         )
         {
-          throw new Error(
-            "Html5Qrcodeが定義されませんでした。"
-          );
+          statusArea.textContent =
+            "QRライブラリが読み込まれていません。\n"
+            + "QR_QRcode_reader_Library.jsを確認してください。";
+
+          statusArea.style.color =
+            "red";
+
+          return;
         }
-
-        statusArea.textContent =
-          "QR制御JavaScriptを読み込んでいます...";
-
-        await loadExternalScript(
-          "./Kajino-QRcode-Reader.js?v=11"
-        );
 
         if(
           typeof QR_loadConnection
           !== "function"
         )
         {
-          throw new Error(
-            "QR_loadConnectionが定義されませんでした。"
-          );
+          statusArea.textContent =
+            "QR制御JavaScriptが正常に実行されていません。\n"
+            + "Kajino-QRcode-Reader.jsの構文を確認してください。";
+
+          statusArea.style.color =
+            "red";
+
+          return;
         }
 
         statusArea.textContent =
@@ -391,53 +334,8 @@
 
         statusArea.style.color =
           "green";
-
-        reloadButton.disabled =
-          false;
-
-        if(
-          document
-            .getElementById(
-              "QR_QRcode_reader_camera_select"
-            )
-            .options.length
-          > 1
-        )
-        {
-          startButton.disabled =
-            false;
-        }
       }
-      catch(error)
-      {
-        console.error(
-          "[initializeQrScripts]",
-          error
-        );
-
-        statusArea.textContent =
-          "QR機能の読み込みに失敗しました。\n"
-          + (
-            error
-            &&
-            error.message
-              ? error.message
-              : String(error)
-          );
-
-        statusArea.style.color =
-          "red";
-
-        startButton.disabled =
-          true;
-
-        reloadButton.disabled =
-          true;
-      }
-    }
-
-
-    initializeQrScripts();
+    );
   </script>
 </body>
 </html>
