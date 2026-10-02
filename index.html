@@ -50,7 +50,8 @@
     #QR_QRcode_reader_camera_status,
     #QR_QRcode_reader_result,
     #QR_connection_status,
-    #QR_send_status {
+    #QR_send_status,
+    #QR_script_status {
       min-height: 24px;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
@@ -166,6 +167,10 @@
       コインの加算や減算は実行されません。
     </p>
 
+    <p id="QR_script_status">
+      JavaScriptを読み込んでいます。
+    </p>
+
     <p id="QR_QRcode_reader_camera_status"></p>
 
     <select id="QR_QRcode_reader_camera_select">
@@ -184,6 +189,7 @@
     <button
       id="QR_QRcode_reader_button"
       type="button"
+      disabled
     >
       読み取り開始　＊カメラ停止中
     </button>
@@ -269,8 +275,68 @@
     </form>
   </section>
 
-  ./QR_QRcode_reader_Library.jsscript>
+  ./QR_QRcode_reader_Library.js?v=4textContent =
+        'QRライブラリを読み込めませんでした。';
+      document.getElementById('QR_script_status').style.color =
+        'red';
+    "
+  ></script>
 
-  ./Kajino-QRcode-Reader.jsscript>
+  ./Kajino-QRcode-Reader.js?v=4textContent =
+        'QR制御JavaScriptを読み込めませんでした。';
+      document.getElementById('QR_script_status').style.color =
+        'red';
+    "
+  ></script>
+
+  <script>
+    window.addEventListener(
+      "load",
+      function()
+      {
+        const statusArea =
+          document.getElementById(
+            "QR_script_status"
+          );
+
+        if(
+          typeof Html5Qrcode
+          === "undefined"
+        )
+        {
+          statusArea.textContent =
+            "QRライブラリが読み込まれていません。"
+            + "\nファイル名と公開URLを確認してください。";
+
+          statusArea.style.color =
+            "red";
+
+          return;
+        }
+
+        if(
+          typeof QR_loadConnection
+          !== "function"
+        )
+        {
+          statusArea.textContent =
+            "Kajino-QRcode-Reader.jsが"
+            + "実行されていません。"
+            + "\nJavaScriptの構文エラーを確認してください。";
+
+          statusArea.style.color =
+            "red";
+
+          return;
+        }
+
+        statusArea.textContent =
+          "JavaScriptを正常に読み込みました。";
+
+        statusArea.style.color =
+          "green";
+      }
+    );
+  </script>
 </body>
 </html>
