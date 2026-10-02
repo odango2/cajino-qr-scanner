@@ -273,21 +273,10 @@
         name="source"
       >
     </form>
-  </section>
+    </section>
 
-  ./QR_QRcode_reader_Library.js?v=9textContent =
-        'QRライブラリを読み込めませんでした。';
-      document.getElementById('QR_script_status').style.color =
-        'red';
-    "
-  ></script>
-
-  ./Kajino-QRcode-Reader.js?v=9textContent =
-        'QR制御JavaScriptを読み込めませんでした。';
-      document.getElementById('QR_script_status').style.color =
-        'red';
-    "
-  ></script>
+  ./QR_QRcode_reader_Library.js?v=10script>
+  ./Kajino-QRcode-Reader.js?v=10script>
 
   <script>
     window.addEventListener(
@@ -305,8 +294,7 @@
         )
         {
           statusArea.textContent =
-            "QRライブラリが読み込まれていません。\n"
-            + "QR_QRcode_reader_Library.jsを確認してください。";
+            "QRライブラリが読み込まれていません。";
 
           statusArea.style.color =
             "red";
@@ -320,8 +308,7 @@
         )
         {
           statusArea.textContent =
-            "QR制御JavaScriptが正常に実行されていません。\n"
-            + "Kajino-QRcode-Reader.jsの構文を確認してください。";
+            "QR制御JavaScriptが正常に実行されていません。";
 
           statusArea.style.color =
             "red";
