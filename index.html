@@ -1,58 +1,280 @@
 <!DOCTYPE html>
 <html lang="ja">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Kajino-QRcode-ver10.0</title>
+<head>
+  <meta charset="UTF-8">
 
-        <style>
-            body {
-            padding: 16px;
-            font-family: sans-serif;
-            }
-             
-            button {
-            width: 100%;
-            max-width: 500px;
-            min-height: 48px;
-            }
-             
-             
-            #QR_QRcode_reader_camera_status {
-            white-space: pre-wrap;
-            }
-             
-            #QR_QRcode_reader_result {
-            overflow-wrap: anywhere;
-            }
-            #QR_QRcode_reader {
-            width: 100%;
-            max-width: 500px;
-            min-height: 300px;
-            border: 2px solid black;
-            box-sizing: border-box;
-            overflow: hidden;
-            }
-        </style>
-    </head>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
 
-    <body>
-        <h1>1S QRコードスキャナー</h1>
-        <section>
-            <h3>QRコードリーダー</h3>
-            <p id="QR_QRcode_reader_camera_status"></p>
-            <select id="QR_QRcode_reader_camera_select">
-                <option value="">カメラを選択してください</option>
-            </select>
-            <button id="QR_QRcode_reader_camera_reload_button" type="button">カメラ情報等を取得・更新</button>
-            <button id="QR_QRcode_reader_button" type="button"></button>
-            <p id="QR_QRcode_reader_result">読み取り結果：対象QRコードをかざしてください.</p>
-            <div id="QR_QRcode_reader"></div>
+  <title>1S QRコードスキャナー</title>
 
-            <!-- ライブラリ -->
-            <script src='QR_QRcode_reader_Library.js'></script>
-            <!-- JSファイル-->
-            <script src='Kajino-QRcode-Reader.js'></script>
-        </section>
-    </body>
+  <style>
+    body {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 16px;
+      font-family: sans-serif;
+      color: #222;
+      background-color: #f5f5f5;
+    }
+
+    section {
+      padding: 18px;
+      border: 1px solid #ccc;
+      border-radius: 12px;
+      background-color: #fff;
+    }
+
+    button,
+    select {
+      width: 100%;
+      max-width: 500px;
+      min-height: 48px;
+      margin: 6px 0;
+      padding: 8px 12px;
+      box-sizing: border-box;
+      font-size: 16px;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    #QR_QRcode_reader_camera_status,
+    #QR_QRcode_reader_result,
+    #QR_connection_status,
+    #QR_send_status {
+      min-height: 24px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-weight: bold;
+    }
+
+    #QR_connection_area {
+      max-width: 500px;
+      margin-bottom: 18px;
+      padding: 12px;
+      border: 1px solid #7b9fc8;
+      border-radius: 8px;
+      background-color: #f3f8ff;
+      box-sizing: border-box;
+    }
+
+    #QR_QRcode_reader {
+      width: 100%;
+      max-width: 500px;
+      min-height: 300px;
+      margin-top: 12px;
+      border: 2px solid #333;
+      border-radius: 8px;
+      box-sizing: border-box;
+      overflow: hidden;
+      background-color: #eee;
+    }
+
+    #QR_last_scan_area {
+      display: none;
+      max-width: 500px;
+      margin-top: 16px;
+      padding: 14px;
+      border: 1px solid #6ea46e;
+      border-radius: 8px;
+      background-color: #effaef;
+      box-sizing: border-box;
+    }
+
+    #QR_last_scan_id {
+      font-size: 22px;
+      letter-spacing: 2px;
+    }
+
+    .notice {
+      max-width: 500px;
+      padding: 12px;
+      border-radius: 8px;
+      background-color: #fff8d6;
+      box-sizing: border-box;
+      line-height: 1.6;
+    }
+
+    .connection-label {
+      font-weight: bold;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+
+      section {
+        padding: 14px;
+      }
+
+      #QR_QRcode_reader {
+        min-height: 260px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <h1>1S QRコードスキャナー</h1>
+
+  <section>
+    <div id="QR_connection_area">
+      <h2>PCとの接続</h2>
+
+      <p id="QR_connection_status">
+        接続情報を確認しています。
+      </p>
+
+      <p>
+        <span class="connection-label">
+          端末ID:
+        </span>
+
+        <span id="QR_station_id">
+          未設定
+        </span>
+      </p>
+
+      <p>
+        <span class="connection-label">
+          接続コード:
+        </span>
+
+        <span id="QR_pairing_code">
+          未設定
+        </span>
+      </p>
+    </div>
+
+    <h2>QRコードリーダー</h2>
+
+    <p class="notice">
+      利用者のQRコードを読み取ってください。
+      正しい形式のユーザーIDを読み取ると、
+      operation画面へ送信します。
+      QRを読み取っただけでは、
+      コインの加算や減算は実行されません。
+    </p>
+
+    <p id="QR_QRcode_reader_camera_status"></p>
+
+    <select id="QR_QRcode_reader_camera_select">
+      <option value="">
+        カメラを選択してください
+      </option>
+    </select>
+
+    <button
+      id="QR_QRcode_reader_camera_reload_button"
+      type="button"
+    >
+      カメラ情報を取得・更新
+    </button>
+
+    <button
+      id="QR_QRcode_reader_button"
+      type="button"
+    >
+      読み取り開始　＊カメラ停止中
+    </button>
+
+    <p id="QR_QRcode_reader_result">
+      読み取り結果：対象QRコードをかざしてください。
+    </p>
+
+    <p id="QR_send_status"></p>
+
+    <div id="QR_QRcode_reader"></div>
+
+    <div id="QR_last_scan_area">
+      <h3>最後に読み取ったID</h3>
+
+      <p>
+        <strong id="QR_last_scan_id"></strong>
+      </p>
+
+      <button
+        type="button"
+        id="QR_resend_button"
+        disabled
+      >
+        PCへ再送信
+      </button>
+
+      <button
+        type="button"
+        id="QR_reset_result_button"
+      >
+        読取結果を消去
+      </button>
+    </div>
+
+    <!--
+      GASへPOSTする非表示フォーム。
+      GitHub Pages自体は移動せず、
+      非表示iframeへ送信する。
+    -->
+    <iframe
+      id="QR_send_frame"
+      name="QR_send_frame"
+      hidden
+    ></iframe>
+
+    <form
+      id="QR_send_form"
+      method="post"
+      target="QR_send_frame"
+      hidden
+    >
+      <input
+        type="hidden"
+        name="action"
+        value="submitScan"
+      >
+
+      <input
+        type="hidden"
+        id="QR_send_session_id"
+        name="sessionId"
+      >
+
+      <input
+        type="hidden"
+        id="QR_send_station_id"
+        name="stationId"
+      >
+
+      <input
+        type="hidden"
+        id="QR_send_pairing_code"
+        name="pairingCode"
+      >
+
+      <input
+        type="hidden"
+        id="QR_send_user_id"
+        name="userId"
+      >
+
+      <input
+        type="hidden"
+        id="QR_send_source"
+        name="source"
+      >
+    </form>
+
+    QR_QRcode_reader_Library.jsscript>
+    <script src="Kajino-QRcode-Reader.js"></script>
+  </section>
+</body>
 </html>
