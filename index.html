@@ -109,6 +109,11 @@
       font-weight: bold;
     }
 
+    .retry-button {
+      background-color: #e8f1ff;
+      font-weight: bold;
+    }
+
     @media (max-width: 600px) {
       body {
         padding: 10px;
@@ -168,12 +173,25 @@
     </p>
 
     <p id="QR_script_status">
-      JavaScriptを読み込んでいます。
+      QR機能を準備しています。
     </p>
+
+    <button
+      type="button"
+      id="QR_script_retry_button"
+      class="retry-button"
+      onclick="initializeQrScripts()"
+      style="display: none;"
+    >
+      QR機能を再読み込み
+    </button>
 
     <p id="QR_QRcode_reader_camera_status"></p>
 
-    <select id="QR_QRcode_reader_camera_select">
+    <select
+      id="QR_QRcode_reader_camera_select"
+      disabled
+    >
       <option value="">
         カメラを選択してください
       </option>
@@ -182,6 +200,7 @@
     <button
       id="QR_QRcode_reader_camera_reload_button"
       type="button"
+      disabled
     >
       カメラ情報を取得・更新
     </button>
@@ -275,67 +294,132 @@
     </form>
   </section>
 
-  ./QR_QRcode_reader_Library.js?v=9textContent =
-        'QRライブラリを読み込めませんでした。';
-      document.getElementById('QR_script_status').style.color =
-        'red';
-    "
-  ></script>
-
-  ./Kajino-QRcode-Reader.js?v=9textContent =
-        'QR制御JavaScriptを読み込めませんでした。';
-      document.getElementById('QR_script_status').style.color =
-        'red';
-    "
-  ></script>
-
   <script>
-    window.addEventListener(
-      "load",
-      function()
-      {
-        const statusArea =
-          document.getElementById(
-            "QR_script_status"
+    "use strict";
+
+    let QR_scripts_initializing =
+      false;
+
+    let QR_control_script_loaded =
+      false;
+
+
+    function loadScript(
+      sourceUrl,
+      timeoutMilliseconds
+    )
+    {
+      return new Promise(
+        function(resolve, reject)
+        {
+          const script =
+            document.createElement(
+              "script"
+            );
+
+          let completed =
+            false;
+
+          const timeoutId =
+            window.setTimeout(
+              function()
+              {
+                if(completed)
+                {
+                  return;
+                }
+
+                completed =
+                  true;
+
+                script.remove();
+
+                reject(
+                  new Error(
+                    "タイムアウト: "
+                    + sourceUrl
+                  )
+                );
+              },
+              timeoutMilliseconds
+            );
+
+          script.src =
+            sourceUrl;
+
+          script.async =
+            false;
+
+          script.addEventListener(
+            "load",
+            function()
+            {
+              if(completed)
+              {
+                return;
+              }
+
+              completed =
+                true;
+
+              window.clearTimeout(
+                timeoutId
+              );
+
+              resolve(
+                sourceUrl
+              );
+            }
           );
 
-        if(
-          typeof Html5Qrcode
-          === "undefined"
-        )
-        {
-          statusArea.textContent =
-            "QRライブラリが読み込まれていません。\n"
-            + "QR_QRcode_reader_Library.jsを確認してください。";
+          script.addEventListener(
+            "error",
+            function()
+            {
+              if(completed)
+              {
+                return;
+              }
 
-          statusArea.style.color =
-            "red";
+              completed =
+                true;
 
-          return;
+              window.clearTimeout(
+                timeoutId
+              );
+
+              script.remove();
+
+              reject(
+                new Error(
+                  "読込失敗: "
+                  + sourceUrl
+                )
+              );
+            }
+          );
+
+          document.body.appendChild(
+            script
+          );
         }
+      );
+    }
 
-        if(
-          typeof QR_loadConnection
-          !== "function"
-        )
-        {
-          statusArea.textContent =
-            "QR制御JavaScriptが正常に実行されていません。\n"
-            + "Kajino-QRcode-Reader.jsの構文を確認してください。";
 
-          statusArea.style.color =
-            "red";
-
-          return;
-        }
-
-        statusArea.textContent =
-          "JavaScriptを正常に読み込みました。";
-
-        statusArea.style.color =
-          "green";
+    async function loadQrLibraryWithFallback()
+    {
+      if(
+        typeof Html5Qrcode
+        !== "undefined"
+      )
+      {
+        return "already-loaded";
       }
-    );
-  </script>
-</body>
-</html>
+
+      const sources = [
+        "https://cdnjs.cloudflare.com/ajax/libs/"
+          + "html5-qrcode/2.3.8/"
+          + "html5-qrcode.min.js",
+
+        "https://
