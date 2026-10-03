@@ -142,7 +142,7 @@ let QR_QRcode_reader_stopping =
 
 
 // ==================================================
-// operation接続関連の状態
+// operation接続関連
 // ==================================================
 
 let QR_receiver_url =
@@ -534,11 +534,6 @@ function QR_sendScannedUserId(
 
   if(QR_send_busy)
   {
-    QR_showSendStatus(
-      "前の読取結果を送信しています。",
-      "black"
-    );
-
     return;
   }
 
@@ -548,11 +543,9 @@ function QR_sendScannedUserId(
   if(
     forceSend !== true
     &&
-    userId
-      === QR_last_sent_user_id
+    userId === QR_last_sent_user_id
     &&
-    now
-      - QR_last_sent_time
+    now - QR_last_sent_time
       < QR_send_duplicate_wait
   )
   {
@@ -755,34 +748,22 @@ function QR_resetResult()
   QR_QRcode_reader_result.style.color =
     "black";
 
-  if(QR_send_status !== null)
-  {
-    QR_send_status.textContent =
-      "";
-  }
+  QR_send_status.textContent =
+    "";
 
-  if(QR_last_scan_id !== null)
-  {
-    QR_last_scan_id.textContent =
-      "";
-  }
+  QR_last_scan_id.textContent =
+    "";
 
-  if(QR_last_scan_area !== null)
-  {
-    QR_last_scan_area.style.display =
-      "none";
-  }
+  QR_last_scan_area.style.display =
+    "none";
 
-  if(QR_resend_button !== null)
-  {
-    QR_resend_button.disabled =
-      true;
-  }
+  QR_resend_button.disabled =
+    true;
 }
 
 
 // ==================================================
-// カメラ一覧取得
+// カメラ一覧
 // ==================================================
 
 async function QR_QRcode_reader_loadCameras()
@@ -827,9 +808,6 @@ async function QR_QRcode_reader_loadCameras()
     {
       QR_QRcode_reader_camera_status.textContent =
         "使用できるカメラが見つかりませんでした。";
-
-      QR_QRcode_reader_button.disabled =
-        true;
 
       return;
     }
@@ -894,9 +872,6 @@ async function QR_QRcode_reader_loadCameras()
     QR_QRcode_reader_camera_status.textContent =
       "カメラを取得できませんでした。\n"
       + "カメラの使用を許可してください。";
-
-    QR_QRcode_reader_button.disabled =
-      true;
   }
   finally
   {
@@ -1316,31 +1291,7 @@ async function QR_QRcode_reader_stopCamera(
       error
     );
 
-    const errorName =
-      error
-      &&
-      error.name
-        ? error.name
-        : "UnknownError";
-
-    const errorDetail =
-      error
-      &&
-      error.message
-        ? error.message
-        : String(error);
-
     QR_QRcode_reader_forceStopTracks();
-
-    const readerElement =
-      document.getElementById(
-        "QR_QRcode_reader"
-      );
-
-    if(readerElement !== null)
-    {
-      readerElement.replaceChildren();
-    }
 
     QR_QRcode_reader_scanner =
       null;
@@ -1348,22 +1299,11 @@ async function QR_QRcode_reader_stopCamera(
     QR_QRcode_reader_camera_on_off =
       false;
 
-    QR_QRcode_reader_last_id =
-      null;
-
-    QR_QRcode_reader_last_time =
-      0;
-
     QR_QRcode_reader_button.textContent =
       "読み取り開始　＊カメラ停止中";
 
     QR_QRcode_reader_camera_status.textContent =
-      "通常のカメラ停止処理に失敗しました。\n"
-      + "強制停止処理を実行しました。\n"
-      + "エラーコード："
-      + errorName
-      + "\nエラー詳細："
-      + errorDetail;
+      "カメラを強制停止しました。";
   }
   finally
   {
@@ -1453,17 +1393,11 @@ function QR_initialize()
   QR_QRcode_reader_camera_status.textContent =
     "カメラ情報を取得しています。";
 
-  if(QR_last_scan_area !== null)
-  {
-    QR_last_scan_area.style.display =
-      "none";
-  }
+  QR_last_scan_area.style.display =
+    "none";
 
-  if(QR_resend_button !== null)
-  {
-    QR_resend_button.disabled =
-      true;
-  }
+  QR_resend_button.disabled =
+    true;
 
   QR_loadConnection();
 
@@ -1494,22 +1428,16 @@ QR_QRcode_reader_camera_reload_button
   );
 
 
-if(QR_resend_button !== null)
-{
-  QR_resend_button.addEventListener(
-    "click",
-    QR_resendLastScan
-  );
-}
+QR_resend_button.addEventListener(
+  "click",
+  QR_resendLastScan
+);
 
 
-if(QR_reset_result_button !== null)
-{
-  QR_reset_result_button.addEventListener(
-    "click",
-    QR_resetResult
-  );
-}
+QR_reset_result_button.addEventListener(
+  "click",
+  QR_resetResult
+);
 
 
 window.addEventListener(
