@@ -50,7 +50,8 @@
     #QR_QRcode_reader_camera_status,
     #QR_QRcode_reader_result,
     #QR_connection_status,
-    #QR_send_status {
+    #QR_send_status,
+    #QR_script_status {
       min-height: 24px;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
@@ -166,6 +167,10 @@
       コインの加算や減算は実行されません。
     </p>
 
+    <p id="QR_script_status">
+      QRライブラリを読み込んでいます。
+    </p>
+
     <p id="QR_QRcode_reader_camera_status"></p>
 
     <select id="QR_QRcode_reader_camera_select">
@@ -177,6 +182,7 @@
     <button
       id="QR_QRcode_reader_camera_reload_button"
       type="button"
+      disabled
     >
       カメラ情報を取得・更新
     </button>
@@ -184,6 +190,7 @@
     <button
       id="QR_QRcode_reader_button"
       type="button"
+      disabled
     >
       読み取り開始　＊カメラ停止中
     </button>
@@ -269,8 +276,168 @@
     </form>
   </section>
 
-  ./QR_QRcode_reader_Library.jsscript>
+  <script>
+    "use strict";
 
-  ./Kajino-QRcode-Reader.jsscript>
+    function loadExternalScript(
+      sourceUrl
+    )
+    {
+      return new Promise(
+        function(resolve, reject)
+        {
+          const script =
+            document.createElement(
+              "script"
+            );
+
+          script.src =
+            sourceUrl;
+
+          script.async =
+            false;
+
+          script.addEventListener(
+            "load",
+            function()
+            {
+              resolve(
+                sourceUrl
+              );
+            }
+          );
+
+          script.addEventListener(
+            "error",
+            function()
+            {
+              reject(
+                new Error(
+                  "読み込めませんでした: "
+                  + sourceUrl
+                )
+              );
+            }
+          );
+
+          document.body.appendChild(
+            script
+          );
+        }
+      );
+    }
+
+
+    async function initializeQrScripts()
+    {
+      const statusArea =
+        document.getElementById(
+          "QR_script_status"
+        );
+
+      const startButton =
+        document.getElementById(
+          "QR_QRcode_reader_button"
+        );
+
+      const reloadButton =
+        document.getElementById(
+          "QR_QRcode_reader_camera_reload_button"
+        );
+
+      try
+      {
+        statusArea.textContent =
+          "QRライブラリを読み込んでいます...";
+
+        statusArea.style.color =
+          "black";
+
+        await loadExternalScript(
+          "https://cdnjs.cloudflare.com/ajax/libs/"
+          + "html5-qrcode/2.3.8/"
+          + "html5-qrcode.min.js"
+        );
+
+        if(
+          typeof Html5Qrcode
+          === "undefined"
+        )
+        {
+          throw new Error(
+            "Html5Qrcodeが定義されませんでした。"
+          );
+        }
+
+        statusArea.textContent =
+          "QR制御JavaScriptを読み込んでいます...";
+
+        await loadExternalScript(
+          "./Kajino-QRcode-Reader.js?v=11"
+        );
+
+        if(
+          typeof QR_loadConnection
+          !== "function"
+        )
+        {
+          throw new Error(
+            "QR_loadConnectionが定義されませんでした。"
+          );
+        }
+
+        statusArea.textContent =
+          "JavaScriptを正常に読み込みました。";
+
+        statusArea.style.color =
+          "green";
+
+        reloadButton.disabled =
+          false;
+
+        if(
+          document
+            .getElementById(
+              "QR_QRcode_reader_camera_select"
+            )
+            .options.length
+          > 1
+        )
+        {
+          startButton.disabled =
+            false;
+        }
+      }
+      catch(error)
+      {
+        console.error(
+          "[initializeQrScripts]",
+          error
+        );
+
+        statusArea.textContent =
+          "QR機能の読み込みに失敗しました。\n"
+          + (
+            error
+            &&
+            error.message
+              ? error.message
+              : String(error)
+          );
+
+        statusArea.style.color =
+          "red";
+
+        startButton.disabled =
+          true;
+
+        reloadButton.disabled =
+          true;
+      }
+    }
+
+
+    initializeQrScripts();
+  </script>
 </body>
 </html>
