@@ -45,6 +45,11 @@ const QR_pairing_code =
     "QR_pairing_code"
   );
 
+const QR_pairing_code_area =
+  document.getElementById(
+    "QR_pairing_code_area"
+  );
+
 const QR_send_status =
   document.getElementById(
     "QR_send_status"
@@ -286,7 +291,17 @@ function QR_loadConnection()
 
   QR_pairing_code.textContent =
     QR_pairing_code_value
-    || "未設定";
+    || "不要";
+
+  if(
+    QR_pairing_code_area !== null
+  )
+  {
+    QR_pairing_code_area.style.display =
+      QR_reader_mode === "register"
+        ? ""
+        : "none";
+  }
 
   QR_applyReaderMode();
 
@@ -348,8 +363,8 @@ function QR_loadConnection()
   else
   {
     QR_connection_status.textContent =
-      "PCとの接続情報を読み込みました。\n"
-      + "operation画面へ読取結果を送信できます。";
+      "operation画面との接続情報を読み込みました。\n"
+      + "QRコードの読み取り結果を送信できます。";
   }
 
   QR_connection_status.style.color =
@@ -383,10 +398,13 @@ function QR_applyReaderMode()
     {
       QR_last_scan_id.style.fontSize =
         "16px";
+
       QR_last_scan_id.style.letterSpacing =
         "1px";
+
       QR_last_scan_id.style.wordBreak =
         "break-all";
+
       QR_last_scan_id.style.overflowWrap =
         "anywhere";
     }
@@ -408,21 +426,31 @@ function QR_applyReaderMode()
 
 function QR_hasValidConnection()
 {
-  return (
-    QR_receiver_url !== ""
-    &&
-    QR_session_id !== ""
-    &&
-    /^[a-z0-9_-]{3,40}$/
+  if(
+    QR_receiver_url === ""
+    ||
+    QR_session_id === ""
+    ||
+    !/^[a-z0-9_-]{3,40}$/
       .test(
         QR_station_id_value
       )
-    &&
-    /^\d{6}$/
+  )
+  {
+    return false;
+  }
+
+  if(
+    QR_reader_mode === "register"
+  )
+  {
+    return /^\d{6}$/
       .test(
         QR_pairing_code_value
-      )
-  );
+      );
+  }
+
+  return true;
 }
 
 
