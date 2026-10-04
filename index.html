@@ -92,8 +92,10 @@
     }
 
     #QR_last_scan_id {
-      font-size: 22px;
-      letter-spacing: 2px;
+      font-size: 16px;
+      letter-spacing: 1px;
+      overflow-wrap: anywhere;
+      word-break: break-all;
     }
 
     .notice {
@@ -159,7 +161,10 @@
 
     <h2>QRコードリーダー</h2>
 
-    <p class="notice">
+    <p
+      id="QR_reader_notice"
+      class="notice"
+    >
       利用者のQRコードを読み取ってください。
       正しい形式のユーザーIDを読み取ると、
       operation画面へ送信します。
@@ -204,7 +209,7 @@
     <div id="QR_QRcode_reader"></div>
 
     <div id="QR_last_scan_area">
-      <h3>最後に読み取ったID</h3>
+      <h3>最後に読み取ったQR</h3>
 
       <p>
         <strong id="QR_last_scan_id"></strong>
@@ -264,8 +269,8 @@
 
       <input
         type="hidden"
-        id="QR_send_user_id"
-        name="userId"
+        id="QR_send_payload"
+        name="payload"
       >
 
       <input
@@ -373,7 +378,7 @@
           "QR制御JavaScriptを読み込んでいます...";
 
         await loadExternalScript(
-          "./Kajino-QRcode-Reader.js?v=11"
+          "./Kajino-QRcode-Reader.js?v=12"
         );
 
         if(
