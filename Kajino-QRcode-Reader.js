@@ -117,7 +117,7 @@ const QR_QRcode_reader_pre_id_check_text =
   /^P\d{2}-\d{5}$/;
 
 const QR_QRcode_reader_qr_card_check_text =
-  /^1SCJ\|user\|U\d{2}-\d{5}\|[0-9a-fA-F]{64}$/;
+  /^1SCJ\|user\|U\d{2}-\d{5}\|[0-9a-fA-F]{64}$/i;
 
 const QR_QRcode_reader_duplicate_wait =
   2000;
@@ -513,69 +513,32 @@ function QR_isValidRegisterPayload(
   payload
 )
 {
-  const comparisonText =
+  const normalizedPayload =
     QR_normalizeRegisterPayload(
       payload
-    )
-      .toUpperCase();
+    );
 
   if(
     QR_QRcode_reader_pre_id_check_text
       .test(
-        comparisonText
+        normalizedPayload.toUpperCase()
       )
   )
   {
     return true;
   }
 
-  const qrCardParts =
-    comparisonText.split(
-      "|"
-    );
-
   if(
-    qrCardParts.length !== 4
-  )
-  {
-    return false;
-  }
-
-  if(
-    qrCardParts[0] !== "1SCJ"
-  )
-  {
-    return false;
-  }
-
-  if(
-    qrCardParts[1] !== "USER"
-  )
-  {
-    return false;
-  }
-
-  if(
-    !/^U\d{2}-\d{5}$/
+    QR_QRcode_reader_qr_card_check_text
       .test(
-        qrCardParts[2]
+        normalizedPayload
       )
   )
   {
-    return false;
+    return true;
   }
 
-  if(
-    !/^[0-9A-F]{64}$/
-      .test(
-        qrCardParts[3]
-      )
-  )
-  {
-    return false;
-  }
-
-  return true;
+  return false;
 }
 
 
@@ -681,7 +644,7 @@ function QR_QRcode_reader_onScanSuccess(
 
   if(
     !QR_isValidRegisterPayload(
-      comparisonText
+      normalizedText
     )
   )
   {
@@ -706,27 +669,27 @@ function QR_QRcode_reader_onScanSuccess(
   }
 
   QR_QRcode_reader_result_text =
-    comparisonText;
+    normalizedText;
 
   QR_QRcode_reader_result.textContent =
     "読み取り結果："
-    + comparisonText;
+    + normalizedText;
 
   QR_QRcode_reader_result.style.color =
     "green";
 
   QR_showLastScan(
-    comparisonText
+    normalizedText
   );
 
   QR_sendScannedPayload(
-    comparisonText,
+    normalizedText,
     false
   );
 
   console.log(
     "[QR register scan success]",
-    comparisonText
+    normalizedText
   );
 }
 
