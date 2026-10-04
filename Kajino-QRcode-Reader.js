@@ -117,7 +117,7 @@ const QR_QRcode_reader_pre_id_check_text =
   /^P\d{2}-\d{5}$/;
 
 const QR_QRcode_reader_qr_card_check_text =
-  /^1SCJ\|user\|U\d{2}-\d{5}\|[0-9a-fA-F]+$/;
+  /^1SCJ\|user\|U\d{2}-\d{5}\|[0-9a-fA-F]{64}$/;
 
 const QR_QRcode_reader_duplicate_wait =
   2000;
@@ -489,15 +489,34 @@ function QR_isAllowedReceiverUrl(
 // 登録モードQR判定
 // ==================================================
 
+function QR_normalizeRegisterPayload(
+  payload
+)
+{
+  return String(
+    payload || ""
+  )
+    .trim()
+    .replace(
+      /\r\n/g,
+      "\n"
+    )
+    .replace(
+      /\r/g,
+      "\n"
+    )
+    .trim();
+}
+
+
 function QR_isValidRegisterPayload(
   payload
 )
 {
   const comparisonText =
-    String(
-      payload || ""
+    QR_normalizeRegisterPayload(
+      payload
     )
-      .trim()
       .toUpperCase();
 
   if(
@@ -510,17 +529,53 @@ function QR_isValidRegisterPayload(
     return true;
   }
 
+  const qrCardParts =
+    comparisonText.split(
+      "|"
+    );
+
   if(
-    QR_QRcode_reader_qr_card_check_text
+    qrCardParts.length !== 4
+  )
+  {
+    return false;
+  }
+
+  if(
+    qrCardParts[0] !== "1SCJ"
+  )
+  {
+    return false;
+  }
+
+  if(
+    qrCardParts[1] !== "USER"
+  )
+  {
+    return false;
+  }
+
+  if(
+    !/^U\d{2}-\d{5}$/
       .test(
-        comparisonText
+        qrCardParts[2]
       )
   )
   {
-    return true;
+    return false;
   }
 
-  return false;
+  if(
+    !/^[0-9A-F]{64}$/
+      .test(
+        qrCardParts[3]
+      )
+  )
+  {
+    return false;
+  }
+
+  return true;
 }
 
 
@@ -533,9 +588,9 @@ function QR_QRcode_reader_onScanSuccess(
 )
 {
   const normalizedText =
-    String(
-      decodedText || ""
-    ).trim();
+    QR_normalizeRegisterPayload(
+      decodedText
+    );
 
   const comparisonText =
     normalizedText.toUpperCase();
@@ -642,7 +697,8 @@ function QR_QRcode_reader_onScanSuccess(
 
     QR_showSendStatus(
       "仮登録QRコードはP00-00000形式、"
-      + "QRカードは1SCJ|user|U00-00000|...形式です。",
+      + "QRカードは1SCJ|user|U00-00000|"
+      + "64文字の16進数形式です。",
       "red"
     );
 
