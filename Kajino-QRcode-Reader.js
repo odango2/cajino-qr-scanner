@@ -113,6 +113,12 @@ const QR_reader_notice =
 const QR_QRcode_reader_user_id_check_text =
   /^[USAT]\d{2}-\d{5}$/;
 
+const QR_QRcode_reader_pre_id_check_text =
+  /^P\d{2}-\d{5}$/;
+
+const QR_QRcode_reader_qr_card_check_text =
+  /^1SCJ\|user\|U\d{2}-\d{5}\|[0-9a-fA-F]+$/;
+
 const QR_QRcode_reader_duplicate_wait =
   2000;
 
@@ -480,6 +486,45 @@ function QR_isAllowedReceiverUrl(
 
 
 // ==================================================
+// 登録モードQR判定
+// ==================================================
+
+function QR_isValidRegisterPayload(
+  payload
+)
+{
+  const comparisonText =
+    String(
+      payload || ""
+    )
+      .trim()
+      .toUpperCase();
+
+  if(
+    QR_QRcode_reader_pre_id_check_text
+      .test(
+        comparisonText
+      )
+  )
+  {
+    return true;
+  }
+
+  if(
+    QR_QRcode_reader_qr_card_check_text
+      .test(
+        comparisonText
+      )
+  )
+  {
+    return true;
+  }
+
+  return false;
+}
+
+
+// ==================================================
 // 読取成功
 // ==================================================
 
@@ -579,28 +624,53 @@ function QR_QRcode_reader_onScanSuccess(
     return;
   }
 
+  if(
+    !QR_isValidRegisterPayload(
+      comparisonText
+    )
+  )
+  {
+    QR_QRcode_reader_result.textContent =
+      "読み取り結果：Error："
+      + "利用者登録に使用できるQRコードではありません。";
+
+    QR_QRcode_reader_result.style.color =
+      "red";
+
+    QR_QRcode_reader_result_text =
+      null;
+
+    QR_showSendStatus(
+      "仮登録QRコードはP00-00000形式、"
+      + "QRカードは1SCJ|user|U00-00000|...形式です。",
+      "red"
+    );
+
+    return;
+  }
+
   QR_QRcode_reader_result_text =
-    normalizedText;
+    comparisonText;
 
   QR_QRcode_reader_result.textContent =
     "読み取り結果："
-    + normalizedText;
+    + comparisonText;
 
   QR_QRcode_reader_result.style.color =
     "green";
 
   QR_showLastScan(
-    normalizedText
+    comparisonText
   );
 
   QR_sendScannedPayload(
-    normalizedText,
+    comparisonText,
     false
   );
 
   console.log(
     "[QR register scan success]",
-    normalizedText
+    comparisonText
   );
 }
 
