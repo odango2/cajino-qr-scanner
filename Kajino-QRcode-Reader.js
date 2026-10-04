@@ -1,1464 +1,1276 @@
-"use strict";
+const REGISTER_SCANNER_PAGE_TYPE = "register";
 
+const REGISTER_SCANNER_SESSION_MINUTES = 30;
+const REGISTER_SCANNER_SCAN_MINUTES = 2;
 
-// ==================================================
-// DOM要素
-// ==================================================
+const REGISTER_SCANNER_GITHUB_URL =
+  "https://odango2.github.io/"
+  + "cajino-qr-scanner/";
 
-const QR_QRcode_reader_button =
-  document.getElementById(
-    "QR_QRcode_reader_button"
-  );
 
-const QR_QRcode_reader_result =
-  document.getElementById(
-    "QR_QRcode_reader_result"
-  );
-
-const QR_QRcode_reader_camera_select =
-  document.getElementById(
-    "QR_QRcode_reader_camera_select"
-  );
-
-const QR_QRcode_reader_camera_reload_button =
-  document.getElementById(
-    "QR_QRcode_reader_camera_reload_button"
-  );
-
-const QR_QRcode_reader_camera_status =
-  document.getElementById(
-    "QR_QRcode_reader_camera_status"
-  );
-
-const QR_connection_status =
-  document.getElementById(
-    "QR_connection_status"
-  );
-
-const QR_station_id =
-  document.getElementById(
-    "QR_station_id"
-  );
-
-const QR_pairing_code =
-  document.getElementById(
-    "QR_pairing_code"
-  );
-
-const QR_send_status =
-  document.getElementById(
-    "QR_send_status"
-  );
-
-const QR_last_scan_area =
-  document.getElementById(
-    "QR_last_scan_area"
-  );
-
-const QR_last_scan_id =
-  document.getElementById(
-    "QR_last_scan_id"
-  );
-
-const QR_resend_button =
-  document.getElementById(
-    "QR_resend_button"
-  );
-
-const QR_reset_result_button =
-  document.getElementById(
-    "QR_reset_result_button"
-  );
-
-const QR_send_form =
-  document.getElementById(
-    "QR_send_form"
-  );
-
-const QR_send_session_id =
-  document.getElementById(
-    "QR_send_session_id"
-  );
-
-const QR_send_station_id =
-  document.getElementById(
-    "QR_send_station_id"
-  );
-
-const QR_send_pairing_code =
-  document.getElementById(
-    "QR_send_pairing_code"
-  );
-
-const QR_send_user_id =
-  document.getElementById(
-    "QR_send_user_id"
-  );
-
-const QR_send_source =
-  document.getElementById(
-    "QR_send_source"
-  );
-
-
-// ==================================================
-// 定数
-// ==================================================
-
-const QR_QRcode_reader_scanner_text_check_text =
-  /^[USAT]\d{2}-\d{5}$/;
-
-const QR_QRcode_reader_duplicate_wait =
-  2000;
-
-const QR_send_duplicate_wait =
-  3000;
-
-const QR_send_unlock_wait =
-  1500;
-
-
-// ==================================================
-// カメラ関連の状態
-// ==================================================
-
-let QR_QRcode_reader_camera_on_off =
-  false;
-
-let QR_QRcode_reader_scanner =
-  null;
-
-let QR_QRcode_reader_last_id =
-  null;
-
-let QR_QRcode_reader_last_time =
-  0;
-
-let QR_QRcode_reader_result_text =
-  null;
-
-let QR_QRcode_reader_stopping =
-  false;
-
-
-// ==================================================
-// operation接続関連
-// ==================================================
-
-let QR_receiver_url =
-  "";
-
-let QR_session_id =
-  "";
-
-let QR_station_id_value =
-  "";
-
-let QR_pairing_code_value =
-  "";
-
-let QR_source =
-  "phone";
-
-let QR_send_busy =
-  false;
-
-let QR_last_sent_user_id =
-  "";
-
-let QR_last_sent_time =
-  0;
-
-let QR_connection_valid =
-  false;
-
-
-// ==================================================
-// 接続情報
-// ==================================================
-
-function QR_loadConnection()
-{
-  const parameters =
-    new URLSearchParams(
-      window.location.search
-    );
-
-  QR_receiver_url =
-    String(
-      parameters.get(
-        "receiverUrl"
-      )
-      || ""
-    ).trim();
-
-  QR_session_id =
-    String(
-      parameters.get(
-        "sessionId"
-      )
-      || ""
-    ).trim();
-
-  QR_station_id_value =
-    String(
-      parameters.get(
-        "stationId"
-      )
-      || ""
-    )
-      .trim()
-      .toLowerCase();
-
-  QR_pairing_code_value =
-    String(
-      parameters.get(
-        "pairingCode"
-      )
-      || ""
-    ).trim();
-
-  QR_source =
-    String(
-      parameters.get(
-        "source"
-      )
-      || "phone"
-    )
-      .trim()
-      .toLowerCase();
-
-  if(
-    QR_source !== "phone"
-    &&
-    QR_source !== "pc_camera"
-  )
-  {
-    QR_source =
-      "unknown";
-  }
-
-  QR_station_id.textContent =
-    QR_station_id_value
-    || "未設定";
-
-  QR_pairing_code.textContent =
-    QR_pairing_code_value
-    || "未設定";
-
-  if(!QR_hasValidConnection())
-  {
-    QR_connection_valid =
-      false;
-
-    QR_connection_status.textContent =
-      "PCとの接続情報が不足しています。\n"
-      + "operation画面から発行された接続URLを開いてください。";
-
-    QR_connection_status.style.color =
-      "red";
-
-    QR_showSendStatus(
-      "接続されていないため、読取結果は送信されません。",
-      "red"
-    );
-
-    return false;
-  }
-
-  if(
-    !QR_isAllowedReceiverUrl(
-      QR_receiver_url
-    )
-  )
-  {
-    QR_connection_valid =
-      false;
-
-    QR_connection_status.textContent =
-      "GASの送信先URLが正しくありません。";
-
-    QR_connection_status.style.color =
-      "red";
-
-    QR_showSendStatus(
-      "安全でない送信先が指定されています。",
-      "red"
-    );
-
-    return false;
-  }
-
-  QR_connection_valid =
-    true;
-
-  QR_connection_status.textContent =
-    "PCとの接続情報を読み込みました。\n"
-    + "operation画面へ読取結果を送信できます。";
-
-  QR_connection_status.style.color =
-    "green";
-
-  QR_showSendStatus(
-    "QRコードの読み取りを開始してください。",
-    "black"
-  );
-
-  return true;
-}
-
-
-function QR_hasValidConnection()
-{
-  return (
-    QR_receiver_url !== ""
-    &&
-    QR_session_id !== ""
-    &&
-    /^[a-z0-9_-]{3,40}$/
-      .test(
-        QR_station_id_value
-      )
-    &&
-    /^\d{6}$/
-      .test(
-        QR_pairing_code_value
-      )
-  );
-}
-
-
-function QR_isAllowedReceiverUrl(
-  receiverUrl
+function g_createRegisterScannerSession(
+  stationId,
+  operatorId
 )
 {
+  const normalizedStationId =
+    String(
+      stationId || ""
+    )
+      .trim()
+      .toLowerCase();
+
+  const normalizedOperatorId =
+    String(
+      operatorId || ""
+    )
+      .trim()
+      .toUpperCase();
+
+  if(
+    !/^[a-z0-9_-]{3,40}$/.test(
+      normalizedStationId
+    )
+  )
+  {
+    throw new Error(
+      "端末IDが正しくありません。"
+    );
+  }
+
+  if(
+    !/^[SA]\d{2}-\d{5}$/.test(
+      normalizedOperatorId
+    )
+  )
+  {
+    throw new Error(
+      "担当者IDが正しくありません。"
+    );
+  }
+
+  const operator =
+    g_getOperator(
+      normalizedOperatorId
+    );
+
+  if(operator === null)
+  {
+    throw new Error(
+      "担当者が見つかりません。"
+    );
+  }
+
+  const receiverUrl =
+    ScriptApp.getService().getUrl();
+
+  if(
+    !receiverUrl
+    ||
+    String(receiverUrl).trim() === ""
+  )
+  {
+    throw new Error(
+      "登録用QR受信URLを取得できません。"
+    );
+  }
+
+  const sheet =
+    getRequiredRegisterScannerSheet(
+      "scanner_session",
+      [
+        "sessionId",
+        "stationId",
+        "pairingCodeHash",
+        "pageType",
+        "operatorId",
+        "createdAt",
+        "expiresAt",
+        "lastAccessAt",
+        "status"
+      ]
+    );
+
+  const lock =
+    LockService.getScriptLock();
+
+  lock.waitLock(
+    10000
+  );
+
   try
   {
-    const receiver =
-      new URL(
-        receiverUrl
+    const now =
+      new Date();
+
+    const expiresAt =
+      new Date(
+        now.getTime()
+        +
+        REGISTER_SCANNER_SESSION_MINUTES
+        *
+        60
+        *
+        1000
       );
 
-    if(
-      receiver.protocol
-      !== "https:"
-    )
+    const values =
+      sheet
+        .getDataRange()
+        .getValues();
+
+    for(let i = 1; i < values.length; i++)
     {
-      return false;
-    }
+      const rowPageType =
+        String(
+          values[i][3] || ""
+        )
+          .trim()
+          .toLowerCase();
 
-    const allowedHosts = [
-      "script.google.com",
-      "script.googleusercontent.com"
-    ];
+      const rowStationId =
+        String(
+          values[i][1] || ""
+        )
+          .trim()
+          .toLowerCase();
 
-    if(
-      !allowedHosts.includes(
-        receiver.hostname
+      const rowStatus =
+        String(
+          values[i][8] || ""
+        )
+          .trim()
+          .toLowerCase();
+
+      if(
+        rowPageType
+        === REGISTER_SCANNER_PAGE_TYPE
+        &&
+        rowStationId
+        === normalizedStationId
+        &&
+        rowStatus
+        === "active"
       )
-    )
-    {
-      return false;
+      {
+        sheet
+          .getRange(
+            i + 1,
+            9
+          )
+          .setValue(
+            "closed"
+          );
+      }
     }
 
-    if(
-      receiver.hostname
-        === "script.google.com"
-      &&
-      !receiver.pathname.startsWith(
-        "/macros/"
-      )
-    )
-    {
-      return false;
-    }
+    const sessionId =
+      Utilities.getUuid();
 
-    return true;
-  }
-  catch(error)
-  {
-    console.error(
-      "[QR receiver URL]",
-      error
+    const pairingCode =
+      String(
+        Math.floor(
+          100000
+          +
+          Math.random()
+          *
+          900000
+        )
+      );
+
+    const pairingCodeHash =
+      createRegisterScannerPairingCodeHash(
+        pairingCode
+      );
+
+    sheet.appendRow(
+      [
+        sessionId,
+        normalizedStationId,
+        pairingCodeHash,
+        REGISTER_SCANNER_PAGE_TYPE,
+        normalizedOperatorId,
+        now,
+        expiresAt,
+        now,
+        "active"
+      ]
     );
 
-    return false;
-  }
-}
+    const scannerUrl =
+      REGISTER_SCANNER_GITHUB_URL
+      + "?receiverUrl="
+      + encodeURIComponent(
+          receiverUrl
+        )
+      + "&sessionId="
+      + encodeURIComponent(
+          sessionId
+        )
+      + "&stationId="
+      + encodeURIComponent(
+          normalizedStationId
+        )
+      + "&pairingCode="
+      + encodeURIComponent(
+          pairingCode
+        )
+      + "&source=phone"
+      + "&readerMode=register";
 
+    return {
+      success:
+        true,
 
-// ==================================================
-// 読取成功
-// ==================================================
+      sessionId:
+        sessionId,
 
-function QR_QRcode_reader_onScanSuccess(
-  decodedText
-)
-{
-  const normalizedText =
-    String(decodedText || "")
-      .trim()
-      .toUpperCase();
+      stationId:
+        normalizedStationId,
 
-  const now =
-    Date.now();
+      pairingCode:
+        pairingCode,
 
-  if(
-    normalizedText
-      === QR_QRcode_reader_last_id
-    &&
-    now
-      - QR_QRcode_reader_last_time
-      < QR_QRcode_reader_duplicate_wait
-  )
-  {
-    return;
-  }
+      pageType:
+        REGISTER_SCANNER_PAGE_TYPE,
 
-  QR_QRcode_reader_last_id =
-    normalizedText;
+      expiresAt:
+        expiresAt.toISOString(),
 
-  QR_QRcode_reader_last_time =
-    now;
-
-  if(
-    !QR_QRcode_reader_scanner_text_check_text
-      .test(normalizedText)
-  )
-  {
-    QR_QRcode_reader_result.textContent =
-      "読み取り結果：Error："
-      + "1SシステムのID形式ではありません。";
-
-    QR_QRcode_reader_result.style.color =
-      "red";
-
-    QR_QRcode_reader_result_text =
-      null;
-
-    QR_showSendStatus(
-      "形式が異なるため、PCへ送信していません。",
-      "red"
-    );
-
-    return;
-  }
-
-  QR_QRcode_reader_result_text =
-    normalizedText;
-
-  QR_QRcode_reader_result.textContent =
-    "読み取り結果："
-    + normalizedText;
-
-  QR_QRcode_reader_result.style.color =
-    "green";
-
-  QR_showLastScan(
-    normalizedText
-  );
-
-  QR_sendScannedUserId(
-    normalizedText,
-    false
-  );
-
-  console.log(
-    "[QR scan success]",
-    normalizedText
-  );
-}
-
-
-// ==================================================
-// GASへの送信
-// ==================================================
-
-function QR_sendScannedUserId(
-  rawUserId,
-  forceSend
-)
-{
-  const userId =
-    String(rawUserId || "")
-      .trim()
-      .toUpperCase();
-
-  if(
-    !QR_QRcode_reader_scanner_text_check_text
-      .test(userId)
-  )
-  {
-    QR_showSendStatus(
-      "正しい形式のユーザーIDではありません。",
-      "red"
-    );
-
-    return;
-  }
-
-  if(!QR_connection_valid)
-  {
-    QR_showSendStatus(
-      "PCとの接続が確立されていません。\n"
-      + "operation画面から接続URLを作り直してください。",
-      "red"
-    );
-
-    return;
-  }
-
-  if(!QR_hasValidConnection())
-  {
-    QR_showSendStatus(
-      "PCとの接続情報が不足しています。",
-      "red"
-    );
-
-    return;
-  }
-
-  if(
-    !QR_isAllowedReceiverUrl(
-      QR_receiver_url
-    )
-  )
-  {
-    QR_showSendStatus(
-      "GASの送信先URLが正しくありません。",
-      "red"
-    );
-
-    return;
-  }
-
-  if(QR_send_busy)
-  {
-    return;
-  }
-
-  const now =
-    Date.now();
-
-  if(
-    forceSend !== true
-    &&
-    userId === QR_last_sent_user_id
-    &&
-    now - QR_last_sent_time
-      < QR_send_duplicate_wait
-  )
-  {
-    return;
-  }
-
-  if(
-    QR_send_form === null
-    ||
-    QR_send_session_id === null
-    ||
-    QR_send_station_id === null
-    ||
-    QR_send_pairing_code === null
-    ||
-    QR_send_user_id === null
-    ||
-    QR_send_source === null
-  )
-  {
-    QR_showSendStatus(
-      "送信用フォームが見つかりません。",
-      "red"
-    );
-
-    return;
-  }
-
-  QR_send_busy =
-    true;
-
-  QR_last_sent_user_id =
-    userId;
-
-  QR_last_sent_time =
-    now;
-
-  QR_send_form.action =
-    QR_receiver_url;
-
-  QR_send_session_id.value =
-    QR_session_id;
-
-  QR_send_station_id.value =
-    QR_station_id_value;
-
-  QR_send_pairing_code.value =
-    QR_pairing_code_value;
-
-  QR_send_user_id.value =
-    userId;
-
-  QR_send_source.value =
-    QR_source;
-
-  QR_resend_button.disabled =
-    true;
-
-  QR_showSendStatus(
-    userId
-    + "をPCへ送信しています...",
-    "black"
-  );
-
-  try
-  {
-    QR_send_form.submit();
-
-    QR_showSendStatus(
-      userId
-      + "をPCへ送信しました。\n"
-      + "operation画面でユーザーが表示されることを"
-      + "確認してください。",
-      "green"
-    );
-
-    QR_showLastScan(
-      userId
-    );
-  }
-  catch(error)
-  {
-    console.error(
-      "[QR send scan]",
-      error
-    );
-
-    QR_showSendStatus(
-      "PCへの送信処理に失敗しました。",
-      "red"
-    );
+      scannerUrl:
+        scannerUrl
+    };
   }
   finally
   {
-    window.setTimeout(
-      function()
-      {
-        QR_send_busy =
-          false;
-
-        if(
-          QR_QRcode_reader_result_text
-        )
-        {
-          QR_resend_button.disabled =
-            false;
-        }
-      },
-      QR_send_unlock_wait
-    );
+    lock.releaseLock();
   }
 }
 
 
-function QR_showSendStatus(
-  text,
-  color
+function g_consumeLatestRegisterScan(
+  sessionId,
+  stationId,
+  operatorId
 )
 {
-  if(QR_send_status === null)
-  {
-    return;
-  }
-
-  QR_send_status.textContent =
-    text;
-
-  QR_send_status.style.color =
-    color;
-}
-
-
-function QR_showLastScan(
-  userId
-)
-{
-  if(
-    QR_last_scan_area === null
-    ||
-    QR_last_scan_id === null
-    ||
-    QR_resend_button === null
-  )
-  {
-    return;
-  }
-
-  QR_last_scan_id.textContent =
-    userId;
-
-  QR_last_scan_area.style.display =
-    "block";
-
-  QR_resend_button.disabled =
-    QR_send_busy;
-}
-
-
-function QR_resendLastScan()
-{
-  if(
-    !QR_QRcode_reader_result_text
-  )
-  {
-    QR_showSendStatus(
-      "再送信できる読取結果がありません。",
-      "red"
+  const session =
+    findRegisterScannerSessionForOperator(
+      sessionId,
+      stationId,
+      operatorId
     );
 
-    return;
+  if(session === null)
+  {
+    throw new Error(
+      "登録用QRスキャナー接続が無効です。"
+    );
   }
 
-  QR_sendScannedUserId(
-    QR_QRcode_reader_result_text,
-    true
+  const sheet =
+    getRequiredRegisterScannerSheet(
+      "scan_queue",
+      [
+        "scanId",
+        "sessionId",
+        "stationId",
+        "payload",
+        "source",
+        "scannedAt",
+        "expiresAt",
+        "consumedAt",
+        "consumedBy",
+        "result"
+      ]
+    );
+
+  const lock =
+    LockService.getScriptLock();
+
+  lock.waitLock(
+    10000
   );
-}
-
-
-function QR_resetResult()
-{
-  QR_QRcode_reader_result_text =
-    null;
-
-  QR_QRcode_reader_last_id =
-    null;
-
-  QR_QRcode_reader_last_time =
-    0;
-
-  QR_last_sent_user_id =
-    "";
-
-  QR_last_sent_time =
-    0;
-
-  QR_QRcode_reader_result.textContent =
-    "読み取り結果：対象QRコードをかざしてください。";
-
-  QR_QRcode_reader_result.style.color =
-    "black";
-
-  QR_send_status.textContent =
-    "";
-
-  QR_last_scan_id.textContent =
-    "";
-
-  QR_last_scan_area.style.display =
-    "none";
-
-  QR_resend_button.disabled =
-    true;
-}
-
-
-// ==================================================
-// カメラ一覧
-// ==================================================
-
-async function QR_QRcode_reader_loadCameras()
-{
-  QR_QRcode_reader_camera_select.disabled =
-    true;
-
-  QR_QRcode_reader_camera_reload_button.disabled =
-    true;
-
-  QR_QRcode_reader_button.disabled =
-    true;
-
-  QR_QRcode_reader_camera_status.textContent =
-    "カメラ一覧を検出しています。";
 
   try
   {
-    const cameras =
-      await Html5Qrcode.getCameras();
+    const values =
+      sheet
+        .getDataRange()
+        .getValues();
 
-    QR_QRcode_reader_camera_select.innerHTML =
-      "";
+    const now =
+      new Date();
 
-    const defaultOption =
-      document.createElement(
-        "option"
-      );
-
-    defaultOption.value =
-      "";
-
-    defaultOption.textContent =
-      "カメラを選択してください";
-
-    QR_QRcode_reader_camera_select
-      .appendChild(
-        defaultOption
-      );
-
-    if(cameras.length === 0)
+    for(let i = 1; i < values.length; i++)
     {
-      QR_QRcode_reader_camera_status.textContent =
-        "使用できるカメラが見つかりませんでした。";
+      const rowSessionId =
+        String(
+          values[i][1] || ""
+        ).trim();
 
-      return;
-    }
+      const rowStationId =
+        String(
+          values[i][2] || ""
+        ).trim();
 
-    cameras.forEach(
-      function(camera, index)
-      {
-        const option =
-          document.createElement(
-            "option"
-          );
+      const payload =
+        String(
+          values[i][3] || ""
+        ).trim();
 
-        option.value =
-          camera.id;
+      const consumedAt =
+        values[i][7];
 
-        option.textContent =
-          camera.label
-          ||
-          "カメラ"
-          + (index + 1);
-
-        QR_QRcode_reader_camera_select
-          .appendChild(
-            option
-          );
-      }
-    );
-
-    QR_QRcode_reader_camera_status.textContent =
-      cameras.length
-      + "台のカメラを検出しました。";
-
-    QR_QRcode_reader_button.disabled =
-      false;
-
-    if(cameras.length === 1)
-    {
-      QR_QRcode_reader_camera_select.value =
-        cameras[0].id;
-    }
-    else
-    {
-      const preferredCamera =
-        QR_findPreferredCamera(
-          cameras
+      const expiresAt =
+        parseRegisterScannerDate(
+          values[i][6]
         );
 
-      if(preferredCamera !== null)
+      if(
+        rowSessionId
+        !== String(sessionId || "").trim()
+        ||
+        rowStationId
+        !== String(stationId || "")
+          .trim()
+          .toLowerCase()
+        ||
+        payload === ""
+        ||
+        consumedAt
+        ||
+        expiresAt === null
+        ||
+        expiresAt.getTime()
+        <= now.getTime()
+      )
       {
-        QR_QRcode_reader_camera_select.value =
-          preferredCamera.id;
+        continue;
       }
-    }
-  }
-  catch(error)
-  {
-    console.error(
-      "[load cameras]",
-      error
-    );
 
-    QR_QRcode_reader_camera_status.textContent =
-      "カメラを取得できませんでした。\n"
-      + "カメラの使用を許可してください。";
+      sheet
+        .getRange(
+          i + 1,
+          8
+        )
+        .setValue(
+          now
+        );
+
+      sheet
+        .getRange(
+          i + 1,
+          9
+        )
+        .setValue(
+          String(
+            operatorId || ""
+          )
+            .trim()
+            .toUpperCase()
+        );
+
+      sheet
+        .getRange(
+          i + 1,
+          10
+        )
+        .setValue(
+          "consumed"
+        );
+
+      return {
+        success:
+          true,
+
+        hasScan:
+          true,
+
+        payload:
+          payload,
+
+        source:
+          String(
+            values[i][4] || ""
+          ).trim(),
+
+        scannedAt:
+          parseRegisterScannerDate(
+            values[i][5]
+          )
+            ? parseRegisterScannerDate(
+                values[i][5]
+              ).toISOString()
+            : ""
+      };
+    }
+
+    return {
+      success:
+        true,
+
+      hasScan:
+        false
+    };
   }
   finally
   {
-    QR_QRcode_reader_camera_reload_button.disabled =
-      false;
-
-    QR_QRcode_reader_camera_select.disabled =
-      QR_QRcode_reader_camera_on_off;
+    lock.releaseLock();
   }
 }
 
 
-function QR_findPreferredCamera(
-  cameras
+function g_closeRegisterScannerSession(
+  sessionId,
+  stationId,
+  operatorId
 )
 {
-  const backCameraWords = [
-    "back",
-    "rear",
-    "environment",
-    "背面",
-    "外側"
-  ];
+  const session =
+    findRegisterScannerSessionForOperator(
+      sessionId,
+      stationId,
+      operatorId
+    );
 
-  for(const camera of cameras)
+  if(session === null)
   {
-    const label =
+    return {
+      success:
+        true
+    };
+  }
+
+  const sheet =
+    getRequiredRegisterScannerSheet(
+      "scanner_session",
+      [
+        "sessionId",
+        "stationId",
+        "pairingCodeHash",
+        "pageType",
+        "operatorId",
+        "createdAt",
+        "expiresAt",
+        "lastAccessAt",
+        "status"
+      ]
+    );
+
+  const values =
+    sheet
+      .getDataRange()
+      .getValues();
+
+  for(let i = 1; i < values.length; i++)
+  {
+    if(
       String(
-        camera.label
+        values[i][0] || ""
+      ).trim()
+      ===
+      String(
+        sessionId || ""
+      ).trim()
+    )
+    {
+      sheet
+        .getRange(
+          i + 1,
+          9
+        )
+        .setValue(
+          "closed"
+        );
+
+      return {
+        success:
+          true
+      };
+    }
+  }
+
+  return {
+    success:
+      true
+  };
+}
+
+
+function doPost(e)
+{
+  try
+  {
+    const action =
+      String(
+        e
+        &&
+        e.parameter
+        &&
+        e.parameter.action
+          ? e.parameter.action
+          : ""
+      )
+        .trim();
+
+    if(action !== "submitScan")
+    {
+      return createRegisterScannerJsonResponse({
+        success:
+          false,
+
+        error:
+          "不正な操作です。"
+      });
+    }
+
+    const sessionId =
+      String(
+        e.parameter.sessionId
+        || ""
+      ).trim();
+
+    const stationId =
+      String(
+        e.parameter.stationId
         || ""
       )
         .trim()
         .toLowerCase();
 
+    const pairingCode =
+      String(
+        e.parameter.pairingCode
+        || ""
+      ).trim();
+
+    const payload =
+      String(
+        e.parameter.payload
+        || ""
+      ).trim();
+
+    const source =
+      normalizeRegisterScannerSource(
+        e.parameter.source
+      );
+
     if(
-      backCameraWords.some(
-        function(word)
-        {
-          return label.includes(
-            word
-          );
-        }
+      sessionId === ""
+      ||
+      !/^[a-z0-9_-]{3,40}$/.test(
+        stationId
       )
+      ||
+      !/^\d{6}$/.test(
+        pairingCode
+      )
+      ||
+      payload === ""
     )
     {
-      return camera;
-    }
-  }
+      return createRegisterScannerJsonResponse({
+        success:
+          false,
 
-  if(cameras.length > 0)
+        error:
+          "接続情報またはQRデータが不正です。"
+      });
+    }
+
+    const session =
+      findRegisterScannerSessionByCode(
+        sessionId,
+        stationId,
+        pairingCode
+      );
+
+    if(session === null)
+    {
+      return createRegisterScannerJsonResponse({
+        success:
+          false,
+
+        error:
+          "登録用QRスキャナー接続が無効です。"
+      });
+    }
+
+    addRegisterScannerQueueItem(
+      sessionId,
+      stationId,
+      payload,
+      source
+    );
+
+    return createRegisterScannerJsonResponse({
+      success:
+        true,
+
+      message:
+        "QRデータを登録画面へ送信しました。"
+    });
+  }
+  catch(error)
   {
-    return cameras[
-      cameras.length - 1
-    ];
+    console.error(
+      "[register scanner doPost]",
+      error
+    );
+
+    return createRegisterScannerJsonResponse({
+      success:
+        false,
+
+      error:
+        error
+        &&
+        error.message
+          ? error.message
+          : String(error)
+    });
+  }
+}
+
+
+function addRegisterScannerQueueItem(
+  sessionId,
+  stationId,
+  payload,
+  source
+)
+{
+  const sheet =
+    getRequiredRegisterScannerSheet(
+      "scan_queue",
+      [
+        "scanId",
+        "sessionId",
+        "stationId",
+        "payload",
+        "source",
+        "scannedAt",
+        "expiresAt",
+        "consumedAt",
+        "consumedBy",
+        "result"
+      ]
+    );
+
+  const lock =
+    LockService.getScriptLock();
+
+  lock.waitLock(
+    10000
+  );
+
+  try
+  {
+    const values =
+      sheet
+        .getDataRange()
+        .getValues();
+
+    const now =
+      new Date();
+
+    for(let i = values.length - 1; i >= 1; i--)
+    {
+      const rowSessionId =
+        String(
+          values[i][1] || ""
+        ).trim();
+
+      const rowStationId =
+        String(
+          values[i][2] || ""
+        ).trim();
+
+      const rowPayload =
+        String(
+          values[i][3] || ""
+        ).trim();
+
+      const scannedAt =
+        parseRegisterScannerDate(
+          values[i][5]
+        );
+
+      const consumedAt =
+        values[i][7];
+
+      if(
+        rowSessionId
+        ===
+        String(
+          sessionId || ""
+        ).trim()
+        &&
+        rowStationId
+        ===
+        String(
+          stationId || ""
+        ).trim()
+        &&
+        rowPayload
+        ===
+        String(
+          payload || ""
+        ).trim()
+        &&
+        !consumedAt
+        &&
+        scannedAt !== null
+        &&
+        now.getTime()
+        -
+        scannedAt.getTime()
+        < 3000
+      )
+      {
+        return;
+      }
+    }
+
+    const expiresAt =
+      new Date(
+        now.getTime()
+        +
+        REGISTER_SCANNER_SCAN_MINUTES
+        *
+        60
+        *
+        1000
+      );
+
+    sheet.appendRow(
+      [
+        Utilities.getUuid(),
+        String(
+          sessionId || ""
+        ).trim(),
+        String(
+          stationId || ""
+        )
+          .trim()
+          .toLowerCase(),
+        String(
+          payload || ""
+        ).trim(),
+        normalizeRegisterScannerSource(
+          source
+        ),
+        now,
+        expiresAt,
+        "",
+        "",
+        "pending"
+      ]
+    );
+  }
+  finally
+  {
+    lock.releaseLock();
+  }
+}
+
+
+function findRegisterScannerSessionForOperator(
+  sessionId,
+  stationId,
+  operatorId
+)
+{
+  const sheet =
+    getRequiredRegisterScannerSheet(
+      "scanner_session",
+      [
+        "sessionId",
+        "stationId",
+        "pairingCodeHash",
+        "pageType",
+        "operatorId",
+        "createdAt",
+        "expiresAt",
+        "lastAccessAt",
+        "status"
+      ]
+    );
+
+  const values =
+    sheet
+      .getDataRange()
+      .getValues();
+
+  const normalizedSessionId =
+    String(
+      sessionId || ""
+    ).trim();
+
+  const normalizedStationId =
+    String(
+      stationId || ""
+    )
+      .trim()
+      .toLowerCase();
+
+  const normalizedOperatorId =
+    String(
+      operatorId || ""
+    )
+      .trim()
+      .toUpperCase();
+
+  const now =
+    new Date();
+
+  for(let i = 1; i < values.length; i++)
+  {
+    const currentSessionId =
+      String(
+        values[i][0] || ""
+      ).trim();
+
+    const currentStationId =
+      String(
+        values[i][1] || ""
+      )
+        .trim()
+        .toLowerCase();
+
+    const currentPageType =
+      String(
+        values[i][3] || ""
+      )
+        .trim()
+        .toLowerCase();
+
+    const currentOperatorId =
+      String(
+        values[i][4] || ""
+      )
+        .trim()
+        .toUpperCase();
+
+    const expiresAt =
+      parseRegisterScannerDate(
+        values[i][6]
+      );
+
+    const status =
+      String(
+        values[i][8] || ""
+      )
+        .trim()
+        .toLowerCase();
+
+    if(
+      currentSessionId
+      !== normalizedSessionId
+      ||
+      currentStationId
+      !== normalizedStationId
+      ||
+      currentPageType
+      !== REGISTER_SCANNER_PAGE_TYPE
+      ||
+      currentOperatorId
+      !== normalizedOperatorId
+    )
+    {
+      continue;
+    }
+
+    if(
+      expiresAt === null
+      ||
+      expiresAt.getTime()
+      <= now.getTime()
+      ||
+      status !== "active"
+    )
+    {
+      if(status === "active")
+      {
+        sheet
+          .getRange(
+            i + 1,
+            9
+          )
+          .setValue(
+            "expired"
+          );
+      }
+
+      return null;
+    }
+
+    sheet
+      .getRange(
+        i + 1,
+        8
+      )
+      .setValue(
+        now
+      );
+
+    return {
+      sessionId:
+        currentSessionId,
+
+      stationId:
+        currentStationId,
+
+      operatorId:
+        currentOperatorId,
+
+      expiresAt:
+        expiresAt
+    };
   }
 
   return null;
 }
 
 
-// ==================================================
-// カメラ開始・停止
-// ==================================================
-
-async function QR_QRcode_reader_Scanner_on_off()
-{
-  if(QR_QRcode_reader_stopping)
-  {
-    return;
-  }
-
-  QR_QRcode_reader_button.disabled =
-    true;
-
-  QR_QRcode_reader_camera_select.disabled =
-    true;
-
-  QR_QRcode_reader_camera_reload_button.disabled =
-    true;
-
-  if(!QR_QRcode_reader_camera_on_off)
-  {
-    await QR_QRcode_reader_startCamera();
-
-    return;
-  }
-
-  await QR_QRcode_reader_stopCamera(
-    false
-  );
-}
-
-
-async function QR_QRcode_reader_startCamera()
-{
-  const selectedCameraId =
-    QR_QRcode_reader_camera_select.value;
-
-  if(selectedCameraId === "")
-  {
-    QR_QRcode_reader_camera_status.textContent =
-      "使用するカメラを選択してください。";
-
-    QR_QRcode_reader_camera_select.disabled =
-      false;
-
-    QR_QRcode_reader_camera_reload_button.disabled =
-      false;
-
-    QR_QRcode_reader_button.disabled =
-      false;
-
-    return;
-  }
-
-  QR_QRcode_reader_scanner =
-    new Html5Qrcode(
-      "QR_QRcode_reader"
-    );
-
-  try
-  {
-    await QR_QRcode_reader_scanner.start(
-      selectedCameraId,
-      {
-        fps:
-          12,
-
-        qrbox:
-          function(
-            viewfinderWidth,
-            viewfinderHeight
-          )
-          {
-            const availableSize =
-              Math.min(
-                viewfinderWidth,
-                viewfinderHeight
-              );
-
-            const size =
-              Math.min(
-                250,
-                Math.floor(
-                  availableSize
-                  * 0.7
-                )
-              );
-
-            return {
-              width:
-                size,
-
-              height:
-                size
-            };
-          }
-      },
-      QR_QRcode_reader_onScanSuccess
-    );
-
-    QR_QRcode_reader_camera_on_off =
-      true;
-
-    QR_QRcode_reader_button.textContent =
-      "読み取り停止　＊カメラ稼働中";
-
-    QR_QRcode_reader_camera_status.textContent =
-      "カメラを起動しました。";
-
-    QR_QRcode_reader_button.disabled =
-      false;
-
-    QR_QRcode_reader_camera_select.disabled =
-      true;
-
-    QR_QRcode_reader_camera_reload_button.disabled =
-      true;
-  }
-  catch(error)
-  {
-    console.error(
-      "[camera start]",
-      error
-    );
-
-    QR_showCameraStartError(
-      error
-    );
-
-    if(QR_QRcode_reader_scanner !== null)
-    {
-      try
-      {
-        QR_QRcode_reader_scanner.clear();
-      }
-      catch(clearError)
-      {
-        console.warn(
-          "[camera start cleanup]",
-          clearError
-        );
-      }
-    }
-
-    QR_QRcode_reader_scanner =
-      null;
-
-    QR_QRcode_reader_camera_on_off =
-      false;
-
-    QR_QRcode_reader_button.textContent =
-      "読み取り開始　＊カメラ停止中";
-
-    QR_QRcode_reader_button.disabled =
-      false;
-
-    QR_QRcode_reader_camera_select.disabled =
-      false;
-
-    QR_QRcode_reader_camera_reload_button.disabled =
-      false;
-  }
-}
-
-
-function QR_showCameraStartError(
-  error
+function findRegisterScannerSessionByCode(
+  sessionId,
+  stationId,
+  pairingCode
 )
 {
-  const errorName =
-    error
-    &&
-    error.name
-      ? error.name
-      : "UnknownError";
+  const sheet =
+    getRequiredRegisterScannerSheet(
+      "scanner_session",
+      [
+        "sessionId",
+        "stationId",
+        "pairingCodeHash",
+        "pageType",
+        "operatorId",
+        "createdAt",
+        "expiresAt",
+        "lastAccessAt",
+        "status"
+      ]
+    );
 
-  const errorDetail =
-    error
-    &&
-    error.message
-      ? error.message
-      : String(error);
+  const values =
+    sheet
+      .getDataRange()
+      .getValues();
 
-  if(
-    errorName === "NotAllowedError"
-    ||
-    errorDetail.includes(
-      "NotAllowedError"
+  const normalizedSessionId =
+    String(
+      sessionId || ""
+    ).trim();
+
+  const normalizedStationId =
+    String(
+      stationId || ""
     )
-    ||
-    errorDetail.includes(
-      "Permission denied"
-    )
-  )
+      .trim()
+      .toLowerCase();
+
+  const normalizedPairingCode =
+    String(
+      pairingCode || ""
+    ).trim();
+
+  const now =
+    new Date();
+
+  const pairingCodeHash =
+    createRegisterScannerPairingCodeHash(
+      normalizedPairingCode
+    );
+
+  for(let i = 1; i < values.length; i++)
   {
-    QR_QRcode_reader_camera_status.textContent =
-      "カメラの使用が許可されていません。\n"
-      + "ブラウザのカメラ権限を許可してください。\n"
-      + "エラーコード："
-      + errorName;
+    const currentSessionId =
+      String(
+        values[i][0] || ""
+      ).trim();
 
-    return;
-  }
+    const currentStationId =
+      String(
+        values[i][1] || ""
+      )
+        .trim()
+        .toLowerCase();
 
-  if(
-    errorName === "NotFoundError"
-    ||
-    errorDetail.includes(
-      "NotFoundError"
-    )
-  )
-  {
-    QR_QRcode_reader_camera_status.textContent =
-      "使用できるカメラが見つかりません。\n"
-      + "カメラの接続状態を確認してください。\n"
-      + "エラーコード："
-      + errorName;
+    const currentPairingCodeHash =
+      String(
+        values[i][2] || ""
+      ).trim()
+        .toLowerCase();
 
-    return;
-  }
+    const currentPageType =
+      String(
+        values[i][3] || ""
+      )
+        .trim()
+        .toLowerCase();
 
-  if(
-    errorName === "NotReadableError"
-    ||
-    errorDetail.includes(
-      "NotReadableError"
-    )
-    ||
-    errorDetail.includes(
-      "Could not start video source"
-    )
-  )
-  {
-    QR_QRcode_reader_camera_status.textContent =
-      "カメラを使用できません。\n"
-      + "他のアプリやブラウザが"
-      + "カメラを使用していないか確認してください。\n"
-      + "エラーコード："
-      + errorName;
-
-    return;
-  }
-
-  if(
-    errorName === "OverconstrainedError"
-    ||
-    errorDetail.includes(
-      "OverconstrainedError"
-    )
-  )
-  {
-    QR_QRcode_reader_camera_status.textContent =
-      "選択したカメラを使用できません。\n"
-      + "別のカメラを選択してください。\n"
-      + "エラーコード："
-      + errorName;
-
-    return;
-  }
-
-  QR_QRcode_reader_camera_status.textContent =
-    "カメラを起動できませんでした。\n"
-    + "エラーコード："
-    + errorName
-    + "\nエラー詳細："
-    + errorDetail;
-}
-
-
-async function QR_QRcode_reader_stopCamera(
-  resetResult
-)
-{
-  if(QR_QRcode_reader_stopping)
-  {
-    return;
-  }
-
-  QR_QRcode_reader_stopping =
-    true;
-
-  QR_QRcode_reader_button.disabled =
-    true;
-
-  const scanner =
-    QR_QRcode_reader_scanner;
-
-  try
-  {
-    if(scanner !== null)
-    {
-      try
-      {
-        await scanner.stop();
-      }
-      catch(stopError)
-      {
-        console.warn(
-          "[camera stop]",
-          stopError
-        );
-
-        QR_QRcode_reader_forceStopTracks();
-      }
-
-      try
-      {
-        scanner.clear();
-      }
-      catch(clearError)
-      {
-        console.warn(
-          "[camera clear]",
-          clearError
-        );
-      }
-    }
-
-    const readerElement =
-      document.getElementById(
-        "QR_QRcode_reader"
+    const expiresAt =
+      parseRegisterScannerDate(
+        values[i][6]
       );
 
-    if(readerElement !== null)
-    {
-      readerElement.replaceChildren();
-    }
-
-    QR_QRcode_reader_scanner =
-      null;
-
-    QR_QRcode_reader_camera_on_off =
-      false;
-
-    QR_QRcode_reader_last_id =
-      null;
-
-    QR_QRcode_reader_last_time =
-      0;
-
-    QR_QRcode_reader_button.textContent =
-      "読み取り開始　＊カメラ停止中";
-
-    QR_QRcode_reader_camera_status.textContent =
-      "カメラを停止しました。";
-
-    if(resetResult === true)
-    {
-      QR_resetResult();
-    }
-  }
-  catch(error)
-  {
-    console.error(
-      "[camera stop]",
-      error
-    );
-
-    QR_QRcode_reader_forceStopTracks();
-
-    QR_QRcode_reader_scanner =
-      null;
-
-    QR_QRcode_reader_camera_on_off =
-      false;
-
-    QR_QRcode_reader_button.textContent =
-      "読み取り開始　＊カメラ停止中";
-
-    QR_QRcode_reader_camera_status.textContent =
-      "カメラを強制停止しました。";
-  }
-  finally
-  {
-    QR_QRcode_reader_stopping =
-      false;
-
-    QR_QRcode_reader_button.disabled =
-      false;
-
-    QR_QRcode_reader_camera_select.disabled =
-      false;
-
-    QR_QRcode_reader_camera_reload_button.disabled =
-      false;
-  }
-}
-
-
-function QR_QRcode_reader_forceStopTracks()
-{
-  const videos =
-    document.querySelectorAll(
-      "#QR_QRcode_reader video"
-    );
-
-  videos.forEach(
-    function(video)
-    {
-      const stream =
-        video.srcObject;
-
-      if(
-        stream
-        &&
-        typeof stream.getTracks
-          === "function"
+    const status =
+      String(
+        values[i][8] || ""
       )
+        .trim()
+        .toLowerCase();
+
+    if(
+      currentSessionId
+      !== normalizedSessionId
+      ||
+      currentStationId
+      !== normalizedStationId
+      ||
+      currentPairingCodeHash
+      !== pairingCodeHash
+      ||
+      currentPageType
+      !== REGISTER_SCANNER_PAGE_TYPE
+    )
+    {
+      continue;
+    }
+
+    if(
+      expiresAt === null
+      ||
+      expiresAt.getTime()
+      <= now.getTime()
+      ||
+      status !== "active"
+    )
+    {
+      if(status === "active")
       {
-        stream.getTracks()
-          .forEach(
-            function(track)
-            {
-              try
-              {
-                track.stop();
-              }
-              catch(trackError)
-              {
-                console.warn(
-                  "[camera force stop track]",
-                  trackError
-                );
-              }
-            }
+        sheet
+          .getRange(
+            i + 1,
+            9
+          )
+          .setValue(
+            "expired"
           );
       }
 
-      try
-      {
-        video.srcObject =
-          null;
-      }
-      catch(srcObjectError)
-      {
-        console.warn(
-          "[camera force clear srcObject]",
-          srcObjectError
-        );
-      }
+      return null;
     }
-  );
-}
 
+    sheet
+      .getRange(
+        i + 1,
+        8
+      )
+      .setValue(
+        now
+      );
 
-// ==================================================
-// 初期化
-// ==================================================
+    return {
+      sessionId:
+        currentSessionId,
 
-function QR_initialize()
-{
-  QR_QRcode_reader_button.textContent =
-    "読み取り開始　＊カメラ停止中";
+      stationId:
+        currentStationId,
 
-  QR_QRcode_reader_result.style.color =
-    "black";
-
-  QR_QRcode_reader_camera_status.textContent =
-    "カメラ情報を取得しています。";
-
-  QR_last_scan_area.style.display =
-    "none";
-
-  QR_resend_button.disabled =
-    true;
-
-  QR_loadConnection();
-
-  void QR_QRcode_reader_loadCameras();
-}
-
-
-// ==================================================
-// イベント登録
-// ==================================================
-
-QR_QRcode_reader_button.addEventListener(
-  "click",
-  function()
-  {
-    void QR_QRcode_reader_Scanner_on_off();
+      expiresAt:
+        expiresAt
+    };
   }
-);
+
+  return null;
+}
 
 
-QR_QRcode_reader_camera_reload_button
-  .addEventListener(
-    "click",
-    function()
-    {
-      void QR_QRcode_reader_loadCameras();
-    }
-  );
+function getRequiredRegisterScannerSheet(
+  name,
+  requiredHeaders
+)
+{
+  const sheet =
+    getSheet(
+      name
+    );
 
+  if(sheet === null)
+  {
+    throw new Error(
+      name
+      + "シートが見つかりません。"
+    );
+  }
 
-QR_resend_button.addEventListener(
-  "click",
-  QR_resendLastScan
-);
+  const values =
+    sheet
+      .getDataRange()
+      .getValues();
 
+  if(values.length === 0)
+  {
+    throw new Error(
+      name
+      + "シートのヘッダーがありません。"
+    );
+  }
 
-QR_reset_result_button.addEventListener(
-  "click",
-  QR_resetResult
-);
+  const headers =
+    values[0].map(
+      function(value)
+      {
+        return String(
+          value || ""
+        ).trim();
+      }
+    );
 
-
-window.addEventListener(
-  "pagehide",
-  function()
+  for(
+    const requiredHeader
+    of requiredHeaders
+  )
   {
     if(
-      QR_QRcode_reader_scanner
-        !== null
-      &&
-      QR_QRcode_reader_camera_on_off
-      &&
-      !QR_QRcode_reader_stopping
+      headers.indexOf(
+        requiredHeader
+      )
+      ===
+      -1
     )
     {
-      void QR_QRcode_reader_stopCamera(
-        false
+      throw new Error(
+        name
+        + "シートに必要な列「"
+        + requiredHeader
+        + "」がありません。"
       );
     }
   }
-);
+
+  return sheet;
+}
 
 
-QR_initialize();
+function createRegisterScannerPairingCodeHash(
+  pairingCode
+)
+{
+  const bytes =
+    Utilities.computeDigest(
+      Utilities.DigestAlgorithm.SHA_256,
+      String(
+        pairingCode || ""
+      ).trim(),
+      Utilities.Charset.UTF_8
+    );
+
+  return bytes
+    .map(
+      function(byte)
+      {
+        const value =
+          byte < 0
+            ? byte + 256
+            : byte;
+
+        return value
+          .toString(16)
+          .padStart(
+            2,
+            "0"
+          );
+      }
+    )
+    .join("");
+}
+
+
+function normalizeRegisterScannerSource(
+  source
+)
+{
+  const value =
+    String(
+      source || ""
+    )
+      .trim()
+      .toLowerCase();
+
+  if(
+    value === "phone"
+    ||
+    value === "pc_camera"
+  )
+  {
+    return value;
+  }
+
+  return "unknown";
+}
+
+
+function parseRegisterScannerDate(
+  value
+)
+{
+  if(
+    value instanceof Date
+    &&
+    !isNaN(
+      value.getTime()
+    )
+  )
+  {
+    return value;
+  }
+
+  if(
+    value === null
+    ||
+    value === undefined
+    ||
+    value === ""
+  )
+  {
+    return null;
+  }
+
+  const date =
+    new Date(
+      value
+    );
+
+  if(
+    isNaN(
+      date.getTime()
+    )
+  )
+  {
+    return null;
+  }
+
+  return date;
+}
+
+
+function createRegisterScannerJsonResponse(
+  object
+)
+{
+  return ContentService
+    .createTextOutput(
+      JSON.stringify(
+        object
+      )
+    )
+    .setMimeType(
+      ContentService.MimeType.JSON
+    );
+}
