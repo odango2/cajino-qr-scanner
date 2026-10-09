@@ -50,6 +50,21 @@ const QR_pairing_code_area =
     "QR_pairing_code_area"
   );
 
+const QR_pairing_code_input =
+  document.getElementById(
+    "QR_pairing_code_input"
+  );
+
+const QR_connect_pin_button =
+  document.getElementById(
+    "QR_connect_pin_button"
+  );
+
+const QR_pin_status =
+  document.getElementById(
+    "QR_pin_status"
+  );
+
 const QR_send_status =
   document.getElementById(
     "QR_send_status"
@@ -242,6 +257,12 @@ function QR_loadConnection()
       || ""
     ).trim();
 
+  if(QR_pairing_code_input !== null)
+  {
+    QR_pairing_code_input.value =
+      QR_pairing_code_value;
+  }
+
   QR_source =
     String(
       parameters.get(
@@ -291,7 +312,7 @@ function QR_loadConnection()
 
   QR_pairing_code.textContent =
     QR_pairing_code_value
-    || "不要";
+    || "未設定";
 
   if(
     QR_pairing_code_area !== null
@@ -352,27 +373,32 @@ function QR_loadConnection()
   QR_connection_valid =
     true;
 
-  if(
-    QR_reader_mode === "register"
-  )
+  if(QR_hasValidPairingCode())
   {
+    QR_pin_status.textContent =
+      "URLに含まれるPINを読み込みました。必要ならPC画面のPINで上書きできます。";
+    QR_pin_status.style.color = "green";
     QR_connection_status.textContent =
-      "登録画面との接続情報を読み込みました。\n"
-      + "QRコードの内容を登録画面へ送信できます。";
+      (QR_reader_mode === "register" ? "利用者登録" : "operation")
+      + "画面の接続情報を読み込みました。";
+    QR_connection_status.style.color = "green";
   }
   else
   {
     QR_connection_status.textContent =
-      "operation画面との接続情報を読み込みました。\n"
-      + "QRコードの読み取り結果を送信できます。";
+      (QR_reader_mode === "register" ? "利用者登録" : "operation")
+      + "画面をURLから判別しました。PC画面に表示された6桁のPINを入力してください。";
+    QR_connection_status.style.color = "#8a5a00";
+    QR_pin_status.textContent =
+      "PINが設定されるまで、読み取ったデータは送信されません。";
+    QR_pin_status.style.color = "#8a5a00";
   }
 
-  QR_connection_status.style.color =
-    "green";
-
   QR_showSendStatus(
-    "QRコードの読み取りを開始してください。",
-    "black"
+    QR_hasValidPairingCode()
+      ? "QRコードの読み取りを開始してください。"
+      : "PINを設定してからQRコードを読み取ってください。",
+    QR_hasValidPairingCode() ? "black" : "#8a5a00"
   );
 
   return true;
@@ -440,17 +466,51 @@ function QR_hasValidConnection()
     return false;
   }
 
-  if(
-    QR_reader_mode === "register"
-  )
+  return true;
+}
+
+
+function QR_hasValidPairingCode()
+{
+  return /^\d{6}$/.test(
+    QR_pairing_code_value
+  );
+}
+
+
+function QR_connectWithPin()
+{
+  const enteredPin =
+    String(
+      QR_pairing_code_input.value || ""
+    ).trim();
+
+  if(!QR_hasValidConnection())
   {
-    return /^\d{6}$/
-      .test(
-        QR_pairing_code_value
-      );
+    QR_pin_status.textContent =
+      "接続先情報がありません。PC画面から発行したリーダーURLを開いてください。";
+    QR_pin_status.style.color = "red";
+    return;
   }
 
-  return true;
+  if(!/^\d{6}$/.test(enteredPin))
+  {
+    QR_pin_status.textContent =
+      "PINは6桁の数字で入力してください。";
+    QR_pin_status.style.color = "red";
+    return;
+  }
+
+  QR_pairing_code_value = enteredPin;
+  QR_pairing_code.textContent = enteredPin;
+  QR_connection_valid = true;
+  QR_pin_status.textContent =
+    "PINを設定しました。QRコードを読み取るとPCへ送信します。";
+  QR_pin_status.style.color = "green";
+  QR_connection_status.textContent =
+    (QR_reader_mode === "register" ? "利用者登録" : "operation")
+    + "画面の接続情報を読み込みました。";
+  QR_connection_status.style.color = "green";
 }
 
 
@@ -764,6 +824,15 @@ function QR_sendScannedPayload(
       "red"
     );
 
+    return;
+  }
+
+  if(!QR_hasValidPairingCode())
+  {
+    QR_showSendStatus(
+      "先に6桁のPINを入力して「PINを設定」を押してください。",
+      "red"
+    );
     return;
   }
 
@@ -1673,6 +1742,29 @@ QR_QRcode_reader_camera_reload_button
     }
   );
 
+
+if(QR_connect_pin_button !== null)
+{
+  QR_connect_pin_button.addEventListener(
+    "click",
+    QR_connectWithPin
+  );
+}
+
+if(QR_pairing_code_input !== null)
+{
+  QR_pairing_code_input.addEventListener(
+    "keydown",
+    function(event)
+    {
+      if(event.key === "Enter")
+      {
+        event.preventDefault();
+        QR_connectWithPin();
+      }
+    }
+  );
+}
 
 QR_resend_button.addEventListener(
   "click",

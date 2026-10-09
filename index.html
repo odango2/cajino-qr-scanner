@@ -58,6 +58,31 @@
       font-weight: bold;
     }
 
+    #QR_pin_entry {
+      max-width: 500px;
+      margin: 12px 0;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: #fafafa;
+      box-sizing: border-box;
+    }
+
+    #QR_pairing_code_input {
+      width: 100%;
+      min-height: 44px;
+      padding: 8px 10px;
+      margin: 6px 0;
+      box-sizing: border-box;
+      font-size: 18px;
+      letter-spacing: 3px;
+    }
+
+    #QR_connect_pin_button {
+      width: 100%;
+      max-width: 500px;
+    }
+
     #QR_connection_area {
       max-width: 500px;
       margin-bottom: 18px;
@@ -150,13 +175,35 @@
 
       <p id="QR_pairing_code_area">
         <span class="connection-label">
-          接続コード:
+          接続PIN:
         </span>
 
         <span id="QR_pairing_code">
           未設定
         </span>
       </p>
+    </div>
+
+    <div id="QR_pin_entry">
+      <label for="QR_pairing_code_input">
+        接続PIN（PC画面に表示された6桁）
+      </label>
+      <input
+        id="QR_pairing_code_input"
+        type="text"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        maxlength="6"
+        pattern="[0-9]{6}"
+        placeholder="例：123456"
+      >
+      <button
+        id="QR_connect_pin_button"
+        type="button"
+      >
+        PINを設定
+      </button>
+      <p id="QR_pin_status" aria-live="polite"></p>
     </div>
 
     <h2>QRコードリーダー</h2>
@@ -378,7 +425,7 @@
           "QR制御JavaScriptを読み込んでいます...";
 
         await loadExternalScript(
-          "./Kajino-QRcode-Reader.js?v=13"
+          "./Kajino-QRcode-Reader.js?v=14"
         );
 
         if(
