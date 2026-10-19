@@ -300,6 +300,13 @@ function QR_loadConnection()
     QR_reader_mode =
       "register";
   }
+  else if(
+    requestedReaderMode === "visit"
+  )
+  {
+    QR_reader_mode =
+      "visit";
+  }
   else
   {
     QR_reader_mode =
@@ -319,7 +326,11 @@ function QR_loadConnection()
   )
   {
     QR_pairing_code_area.style.display =
-      QR_reader_mode === "register"
+      (
+        QR_reader_mode === "register"
+        ||
+        QR_reader_mode === "visit"
+      )
         ? ""
         : "none";
   }
@@ -379,14 +390,14 @@ function QR_loadConnection()
       "URLに含まれるPINを読み込みました。必要ならPC画面のPINで上書きできます。";
     QR_pin_status.style.color = "green";
     QR_connection_status.textContent =
-      (QR_reader_mode === "register" ? "利用者登録" : "operation")
+      (QR_reader_mode === "register" ? "利用者登録" : QR_reader_mode === "visit" ? "入場受付" : "operation")
       + "画面の接続情報を読み込みました。";
     QR_connection_status.style.color = "green";
   }
   else
   {
     QR_connection_status.textContent =
-      (QR_reader_mode === "register" ? "利用者登録" : "operation")
+      (QR_reader_mode === "register" ? "利用者登録" : QR_reader_mode === "visit" ? "入場受付" : "operation")
       + "画面をURLから判別しました。PC画面に表示された6桁のPINを入力してください。";
     QR_connection_status.style.color = "#8a5a00";
     QR_pin_status.textContent =
@@ -433,6 +444,19 @@ function QR_applyReaderMode()
 
       QR_last_scan_id.style.overflowWrap =
         "anywhere";
+    }
+  }
+  else if(
+    QR_reader_mode === "visit"
+  )
+  {
+    if(QR_reader_notice !== null)
+    {
+      QR_reader_notice.textContent =
+        "入場受付用のQRコードを"
+        + "読み取ってください。\n"
+        + "QRカード、ID形式のQRの"
+        + "どちらも読み取れます。";
     }
   }
   else
@@ -508,7 +532,7 @@ function QR_connectWithPin()
     "PINを設定しました。QRコードを読み取るとPCへ送信します。";
   QR_pin_status.style.color = "green";
   QR_connection_status.textContent =
-    (QR_reader_mode === "register" ? "利用者登録" : "operation")
+    (QR_reader_mode === "register" ? "利用者登録" : QR_reader_mode === "visit" ? "入場受付" : "operation")
     + "画面の接続情報を読み込みました。";
   QR_connection_status.style.color = "green";
 }
@@ -725,6 +749,71 @@ function QR_QRcode_reader_onScanSuccess(
     console.log(
       "[QR operation scan success]",
       comparisonText
+    );
+
+    return;
+  }
+
+  if(
+    QR_reader_mode === "visit"
+  )
+  {
+    const isVisitUserId =
+      QR_QRcode_reader_user_id_check_text.test(
+        comparisonText
+      );
+
+    const isVisitCard =
+      QR_QRcode_reader_qr_card_check_text.test(
+        normalizedText
+      );
+
+    if(
+      !isVisitUserId
+      &&
+      !isVisitCard
+    )
+    {
+      QR_QRcode_reader_result.textContent =
+        "読み取り結果：Error："
+        + "入場受付で使えるQRコードではありません。";
+
+      QR_QRcode_reader_result.style.color =
+        "red";
+
+      QR_QRcode_reader_result_text =
+        null;
+
+      QR_showSendStatus(
+        "QRカードかID形式のQRを読み取ってください。",
+        "red"
+      );
+
+      return;
+    }
+
+    QR_QRcode_reader_result_text =
+      normalizedText;
+
+    QR_QRcode_reader_result.textContent =
+      "読み取り結果："
+      + normalizedText;
+
+    QR_QRcode_reader_result.style.color =
+      "green";
+
+    QR_showLastScan(
+      normalizedText
+    );
+
+    QR_sendScannedPayload(
+      normalizedText,
+      false
+    );
+
+    console.log(
+      "[QR visit scan success]",
+      normalizedText
     );
 
     return;
