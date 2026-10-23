@@ -139,6 +139,9 @@ const QR_QRcode_reader_pre_id_check_text =
 const QR_QRcode_reader_qr_card_check_text =
   /^1SCJ\|user\|U\d{2}-\d{5}\|[0-9a-fA-F]{64}$/i;
 
+const QR_QRcode_reader_staff_card_check_text =
+  /^1SCJ\|staff\|([SA]\d{2}-\d{5})\|[0-9a-fA-F]{64}$/i;
+
 const QR_QRcode_reader_duplicate_wait =
   2000;
 
@@ -300,6 +303,13 @@ function QR_loadConnection()
     QR_reader_mode =
       "register";
   }
+  else if(
+    requestedReaderMode === "visit"
+  )
+  {
+    QR_reader_mode =
+      "visit";
+  }
   else
   {
     QR_reader_mode =
@@ -319,7 +329,11 @@ function QR_loadConnection()
   )
   {
     QR_pairing_code_area.style.display =
-      QR_reader_mode === "register"
+      (
+        QR_reader_mode === "register"
+        ||
+        QR_reader_mode === "visit"
+      )
         ? ""
         : "none";
   }
@@ -379,14 +393,14 @@ function QR_loadConnection()
       "URLに含まれるPINを読み込みました。必要ならPC画面のPINで上書きできます。";
     QR_pin_status.style.color = "green";
     QR_connection_status.textContent =
-      (QR_reader_mode === "register" ? "利用者登録" : "operation")
+      (QR_reader_mode === "register" ? "利用者登録" : QR_reader_mode === "visit" ? "入場受付" : "operation")
       + "画面の接続情報を読み込みました。";
     QR_connection_status.style.color = "green";
   }
   else
   {
     QR_connection_status.textContent =
-      (QR_reader_mode === "register" ? "利用者登録" : "operation")
+      (QR_reader_mode === "register" ? "利用者登録" : QR_reader_mode === "visit" ? "入場受付" : "operation")
       + "画面をURLから判別しました。PC画面に表示された6桁のPINを入力してください。";
     QR_connection_status.style.color = "#8a5a00";
     QR_pin_status.textContent =
@@ -433,6 +447,19 @@ function QR_applyReaderMode()
 
       QR_last_scan_id.style.overflowWrap =
         "anywhere";
+    }
+  }
+  else if(
+    QR_reader_mode === "visit"
+  )
+  {
+    if(QR_reader_notice !== null)
+    {
+      QR_reader_notice.textContent =
+        "入場受付用のQRコードを"
+        + "読み取ってください。\n"
+        + "QRカード、ID形式のQRの"
+        + "どちらも読み取れます。";
     }
   }
   else
@@ -508,7 +535,7 @@ function QR_connectWithPin()
     "PINを設定しました。QRコードを読み取るとPCへ送信します。";
   QR_pin_status.style.color = "green";
   QR_connection_status.textContent =
-    (QR_reader_mode === "register" ? "利用者登録" : "operation")
+    (QR_reader_mode === "register" ? "利用者登録" : QR_reader_mode === "visit" ? "入場受付" : "operation")
     + "画面の接続情報を読み込みました。";
   QR_connection_status.style.color = "green";
 }
@@ -606,6 +633,21 @@ function QR_isValidRegisterPayload(
       payload
     );
 
+  /*
+   * ID単体のQR(U/S/A/T)も
+   * 登録モードで受け付ける
+   * (A00-00000形式のスキャンも可能にする)。
+   */
+  if(
+    QR_QRcode_reader_user_id_check_text
+      .test(
+        normalizedPayload.toUpperCase()
+      )
+  )
+  {
+    return true;
+  }
+
   if(
     QR_QRcode_reader_pre_id_check_text
       .test(
@@ -618,6 +660,21 @@ function QR_isValidRegisterPayload(
 
   if(
     QR_QRcode_reader_qr_card_check_text
+      .test(
+        normalizedPayload
+      )
+  )
+  {
+    return true;
+  }
+
+  /*
+   * スタッフQRカードも受け付ける
+   * (target=operatorでスキャン時、
+   *  受付ページが担当者設定に使う)。
+   */
+  if(
+    QR_QRcode_reader_staff_card_check_text
       .test(
         normalizedPayload
       )
@@ -678,19 +735,30 @@ function QR_QRcode_reader_onScanSuccess(
     QR_reader_mode === "operation"
   )
   {
+    const isOperationStaffCard =
+      QR_QRcode_reader_staff_card_check_text
+        .test(
+          normalizedText
+        );
+
     if(
       !QR_QRcode_reader_user_id_check_text
         .test(
           comparisonText
         )
+      &&
+      !isOperationStaffCard
     )
     {
       QR_QRcode_reader_result.textContent =
         "読み取り結果：Error："
-        + "1SシステムのID形式ではありません。";
+        + "1SシステムのQRコードではありません。";
 
       QR_QRcode_reader_result.style.color =
         "red";
+
+      QR_flashReader(false);
+      QR_alert(false);
 
       QR_QRcode_reader_result_text =
         null;
@@ -704,27 +772,110 @@ function QR_QRcode_reader_onScanSuccess(
     }
 
     QR_QRcode_reader_result_text =
-      comparisonText;
+      isOperationStaffCard
+        ? normalizedText
+        : comparisonText;
 
     QR_QRcode_reader_result.textContent =
       "読み取り結果："
-      + comparisonText;
+      + QR_QRcode_reader_result_text;
 
     QR_QRcode_reader_result.style.color =
       "green";
 
+    QR_flashReader(true);
+    QR_alert(true);
+
     QR_showLastScan(
-      comparisonText
+      QR_QRcode_reader_result_text
     );
 
     QR_sendScannedPayload(
-      comparisonText,
+      QR_QRcode_reader_result_text,
       false
     );
 
     console.log(
       "[QR operation scan success]",
-      comparisonText
+      QR_QRcode_reader_result_text
+    );
+
+    return;
+  }
+
+  if(
+    QR_reader_mode === "visit"
+  )
+  {
+    const isVisitUserId =
+      QR_QRcode_reader_user_id_check_text.test(
+        comparisonText
+      );
+
+    const isVisitCard =
+      QR_QRcode_reader_qr_card_check_text.test(
+        normalizedText
+      );
+
+    const isVisitStaffCard =
+      QR_QRcode_reader_staff_card_check_text.test(
+        normalizedText
+      );
+
+    if(
+      !isVisitUserId
+      &&
+      !isVisitCard
+      &&
+      !isVisitStaffCard
+    )
+    {
+      QR_QRcode_reader_result.textContent =
+        "読み取り結果：Error："
+        + "入場受付で使えるQRコードではありません。";
+
+      QR_QRcode_reader_result.style.color =
+        "red";
+
+      QR_flashReader(false);
+      QR_alert(false);
+
+      QR_QRcode_reader_result_text =
+        null;
+
+      QR_showSendStatus(
+        "QRカードかID形式のQRを読み取ってください。",
+        "red"
+      );
+
+      return;
+    }
+
+    QR_QRcode_reader_result_text =
+      normalizedText;
+
+    QR_QRcode_reader_result.textContent =
+      "読み取り結果："
+      + normalizedText;
+
+    QR_QRcode_reader_result.style.color =
+      "green";
+
+    QR_flashReader(true);
+    QR_alert(true);
+
+    QR_showLastScan(
+      normalizedText
+    );
+
+    QR_sendScannedPayload(
+      normalizedText,
+      false
+    );
+
+    console.log(
+      "[QR visit scan success]",
+      normalizedText
     );
 
     return;
@@ -743,12 +894,17 @@ function QR_QRcode_reader_onScanSuccess(
     QR_QRcode_reader_result.style.color =
       "red";
 
+    QR_flashReader(false);
+    QR_alert(false);
+
     QR_QRcode_reader_result_text =
       null;
 
     QR_showSendStatus(
-      "仮登録QRコードはP00-00000形式、"
+      "仮登録QRはP00-00000形式、"
+      + "ID単体はU/S/A/Tと5桁、"
       + "QRカードは1SCJ|user|U00-00000|"
+      + "スタッフQRは1SCJ|staff|S00-00000|"
       + "64文字の16進数形式です。",
       "red"
     );
@@ -756,28 +912,49 @@ function QR_QRcode_reader_onScanSuccess(
     return;
   }
 
-  QR_QRcode_reader_result_text =
+  /*
+   * ID単体のQRは大文字化して送る
+   * (サーバー側の形式チェックが大文字前提)。
+   * QRカードの鍵(hex)は大小を保持する。
+   */
+  let registerSendText =
     normalizedText;
+
+  if(
+    QR_QRcode_reader_user_id_check_text.test(
+      normalizedText.toUpperCase()
+    )
+  )
+  {
+    registerSendText =
+      normalizedText.toUpperCase();
+  }
+
+  QR_QRcode_reader_result_text =
+    registerSendText;
 
   QR_QRcode_reader_result.textContent =
     "読み取り結果："
-    + normalizedText;
+    + registerSendText;
 
   QR_QRcode_reader_result.style.color =
     "green";
 
+  QR_flashReader(true);
+  QR_alert(true);
+
   QR_showLastScan(
-    normalizedText
+    registerSendText
   );
 
   QR_sendScannedPayload(
-    normalizedText,
+    registerSendText,
     false
   );
 
   console.log(
     "[QR register scan success]",
-    normalizedText
+    registerSendText
   );
 }
 
@@ -1800,3 +1977,166 @@ window.addEventListener(
 
 
 QR_initialize();
+
+
+// ==================================================
+// 枠色とアラート(音・バイブ)
+// ==================================================
+
+let QR_flashReader_timer =
+  null;
+
+let QR_alert_audio_context =
+  null;
+
+
+/**
+ * 読み取り結果をカメラ枠の色で伝える。
+ * 成功=緑 / 失敗=赤。0.8秒で元に戻す。
+ */
+function QR_flashReader(
+  success
+)
+{
+  const cameraBox =
+    document.getElementById(
+      "QR_QRcode_reader"
+    );
+
+  if(
+    cameraBox === null
+  )
+  {
+    return;
+  }
+
+  cameraBox.style.borderColor =
+    success
+      ? "green"
+      : "red";
+
+  if(
+    QR_flashReader_timer !== null
+  )
+  {
+    clearTimeout(
+      QR_flashReader_timer
+    );
+  }
+
+  QR_flashReader_timer =
+    setTimeout(
+      function()
+      {
+        cameraBox.style.borderColor =
+          "#333";
+      },
+      800
+    );
+}
+
+
+/**
+ * 成功=高音1回、失敗=低音1回。
+ * 大音量にしない(店内BGMや本人装備を
+ * 考慮)。振動が使える端末では併用。
+ */
+function QR_alert(
+  success
+)
+{
+  try
+  {
+    if(
+      navigator.vibrate
+    )
+    {
+      navigator.vibrate(
+        success
+          ? 120
+          : [
+              100,
+              60,
+              100
+            ]
+      );
+    }
+  }
+  catch(error)
+  {
+    /* 振動はできなくても続行 */
+  }
+
+  try
+  {
+    const audioContext =
+      window.AudioContext
+      || window.webkitAudioContext;
+
+    if(
+      !audioContext
+    )
+    {
+      return;
+    }
+
+    if(
+      QR_alert_audio_context === null
+    )
+    {
+      QR_alert_audio_context =
+        new audioContext();
+    }
+
+    if(
+      QR_alert_audio_context.state
+        === "suspended"
+    )
+    {
+      QR_alert_audio_context
+        .resume();
+    }
+
+    const oscillator =
+      QR_alert_audio_context
+        .createOscillator();
+
+    const gain =
+      QR_alert_audio_context
+        .createGain();
+
+    oscillator.type =
+      "sine";
+
+    oscillator.frequency.value =
+      success
+        ? 1320
+        : 440;
+
+    gain.gain.value =
+      0.1;
+
+    oscillator.connect(gain);
+
+    gain.connect(
+      QR_alert_audio_context.destination
+    );
+
+    oscillator.start();
+
+    gain.gain.exponentialRampToValueAtTime(
+      0.0001,
+      QR_alert_audio_context.currentTime
+        + 0.25
+    );
+
+    oscillator.stop(
+      QR_alert_audio_context.currentTime
+        + 0.25
+    );
+  }
+  catch(error)
+  {
+    /* 音はできなくても続行 */
+  }
+}
