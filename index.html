@@ -204,6 +204,32 @@
         PINを設定
       </button>
       <p id="QR_pin_status" aria-live="polite"></p>
+
+      <div
+        id="QR_reader_mode_entry"
+        style="display:none;margin-top:10px;"
+      >
+        <label
+          for="QR_reader_mode_select"
+          style="display:block;font-size:12px;"
+        >
+          接続先の画面（URLから判別できないときだけ選ぶ）
+        </label>
+        <select
+          id="QR_reader_mode_select"
+          style="width:100%;padding:8px;margin-top:4px;"
+        >
+          <option value="register">
+            利用者登録（register）
+          </option>
+          <option value="visit">
+            来場受付・退場（visit）
+          </option>
+          <option value="operation">
+            コイン操作（operation）
+          </option>
+        </select>
+      </div>
     </div>
 
     <h2>QRコードリーダー</h2>

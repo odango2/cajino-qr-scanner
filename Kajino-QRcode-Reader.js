@@ -125,6 +125,16 @@ const QR_reader_notice =
     "QR_reader_notice"
   );
 
+const QR_reader_mode_entry =
+  document.getElementById(
+    "QR_reader_mode_entry"
+  );
+
+const QR_reader_mode_select =
+  document.getElementById(
+    "QR_reader_mode_select"
+  );
+
 
 // ==================================================
 // 定数
@@ -340,6 +350,12 @@ function QR_loadConnection()
 
   QR_applyReaderMode();
 
+  if(QR_reader_mode_select !== null)
+  {
+    QR_reader_mode_select.value =
+      QR_reader_mode;
+  }
+
   if(!QR_hasValidConnection())
   {
     QR_connection_valid =
@@ -347,14 +363,20 @@ function QR_loadConnection()
 
     QR_connection_status.textContent =
       "PCとの接続情報が不足しています。\n"
-      + "接続元の登録画面またはoperation画面から"
-      + "発行された接続URLを開いてください。";
+      + "PC側で発行された接続URLを開くか、"
+      + "PC画面に表示された6桁のPINを入力すれば接続できます。";
 
     QR_connection_status.style.color =
       "red";
 
+    if(QR_reader_mode_entry !== null)
+    {
+      QR_reader_mode_entry.style.display =
+        "";
+    }
+
     QR_showSendStatus(
-      "接続されていないため、読取結果は送信されません。",
+      "接続されていないため、読取結果は送信されません。PINを設定して接続してください。",
       "red"
     );
 
@@ -505,20 +527,56 @@ function QR_hasValidPairingCode()
 }
 
 
+/*
+ * PINだけでの遅れ接続(RESCUE接続)に
+ * 使う受信側URLの候補。
+ * (ページURLに接続情報が無い場合も
+ *  PINさえあればPCと接続できる)
+ */
+const QR_RESOLVE_RECEIVER_URLS =
+{
+  register:
+  [
+    "https://script.google.com/macros/s/"
+    + "AKfycbwdJ9gbqVnb1DmcpOU19vbAB8LrtDZsy9tcXOujZDgrmAD_NFgYLhA3g38OcRJFyzWEpA"
+    + "/exec"
+  ],
+
+  operation:
+  [
+    "https://script.google.com/macros/s/"
+    + "AKfycbzv4NhnacOrORq-3H_vzvb-rcb6TVH_MHJ4YvkcMcJog0OX0RsnrXG23e1Ciwdja94qUw"
+    + "/exec"
+  ],
+
+  visit:
+  [
+    "https://script.google.com/macros/s/"
+    + "AKfycbxAkiU_atP8r-xiu_EDvq5mhPWtRvwNWZPZXpZUR1TYcylGvFpMW9-HnvEc_ex4F1jB"
+    + "/exec",
+
+    "https://script.google.com/macros/s/"
+    + "AKfycbzKq9sY0LftLp62NB0e5PQQOavud2aCqngTcWATOU4_bXVFz5sl8KAXZsMXReLRuvOj"
+    + "/exec"
+  ]
+};
+
+
+let QR_resolve_running =
+  false;
+
+
+/**
+ * PIN設定ボタン。
+ * 接続情報が無い場合はPINから
+ * GAS側に照会して接続情報を取得する。
+ */
 function QR_connectWithPin()
 {
   const enteredPin =
     String(
       QR_pairing_code_input.value || ""
     ).trim();
-
-  if(!QR_hasValidConnection())
-  {
-    QR_pin_status.textContent =
-      "接続先情報がありません。PC画面から発行したリーダーURLを開いてください。";
-    QR_pin_status.style.color = "red";
-    return;
-  }
 
   if(!/^\d{6}$/.test(enteredPin))
   {
@@ -530,6 +588,28 @@ function QR_connectWithPin()
 
   QR_pairing_code_value = enteredPin;
   QR_pairing_code.textContent = enteredPin;
+
+  if(!QR_hasValidConnection())
+  {
+    /*
+     * URL接続情報が無い場合:
+     * PINからGASへ問い合わせて
+     * 接続情報を取得する。
+     */
+    QR_pin_status.textContent =
+      "PINを受け付けました。PCとの接続情報を取得しています...";
+    QR_pin_status.style.color = "#8a5a00";
+
+    if(QR_reader_mode_entry !== null)
+    {
+      QR_reader_mode_entry.style.display = "";
+    }
+
+    void QR_resolveConnectionByPin();
+
+    return;
+  }
+
   QR_connection_valid = true;
   QR_pin_status.textContent =
     "PINを設定しました。QRコードを読み取るとPCへ送信します。";
@@ -538,6 +618,158 @@ function QR_connectWithPin()
     (QR_reader_mode === "register" ? "利用者登録" : QR_reader_mode === "visit" ? "入場受付" : "operation")
     + "画面の接続情報を読み込みました。";
   QR_connection_status.style.color = "green";
+}
+
+
+function QR_resolveCandidateUrls()
+{
+  let urls =
+    QR_RESOLVE_RECEIVER_URLS[
+      QR_reader_mode
+    ];
+
+  if(!Array.isArray(urls))
+  {
+    urls =
+      [];
+  }
+
+  return urls;
+}
+
+
+/**
+ * PINからGASへ接続情報を問い合わせる。
+ * 候補URLを順番にたたいて
+ * 有効セッションを探す。
+ */
+async function QR_resolveConnectionByPin()
+{
+  if(QR_resolve_running)
+  {
+    return;
+  }
+
+  const urls =
+    QR_resolveCandidateUrls();
+
+  if(urls.length === 0)
+  {
+    QR_resolve_running = false;
+
+    QR_pin_status.textContent =
+      "接続先の候補がありません。PC画面から発行したリーダーURLを開いてください。";
+    QR_pin_status.style.color = "red";
+
+    return;
+  }
+
+  QR_resolve_running = true;
+
+  let lastError =
+    "このPINに有効な接続が見つかりませんでした。";
+
+  for(let i = 0; i < urls.length; i++)
+  {
+    try
+    {
+      const response =
+        await fetch(
+          urls[i],
+          {
+            method: "POST",
+            headers:
+            {
+              "Content-Type":
+                "text/plain;charset=utf-8"
+            },
+            body:
+              JSON.stringify(
+                {
+                  action:
+                    "resolveConnection",
+
+                  pairingCode:
+                    QR_pairing_code_value
+                }
+              )
+          }
+        );
+
+      if(!response.ok)
+      {
+        continue;
+      }
+
+      const data =
+        await response.json();
+
+      if(
+        data.ok === true
+      )
+      {
+        if(
+          !QR_isAllowedReceiverUrl(
+            String(data.receiverUrl || "")
+          )
+        )
+        {
+          lastError =
+            "GASの送信先URLが許可されていません。";
+
+          continue;
+        }
+
+        QR_receiver_url =
+          String(data.receiverUrl || "").trim();
+
+        QR_session_id =
+          String(data.sessionId || "").trim();
+
+        QR_station_id_value =
+          String(data.stationId || "")
+            .trim()
+            .toLowerCase();
+
+        QR_connection_valid =
+          true;
+
+        QR_pin_status.textContent =
+          "PINで接続しました。QRコードを読み取るとPCへ送信します。";
+        QR_pin_status.style.color = "green";
+
+        QR_connection_status.textContent =
+          "PCとの接続情報をPINから取得しました。";
+        QR_connection_status.style.color = "green";
+
+        QR_station_id.textContent =
+          QR_station_id_value || "未設定";
+
+        QR_resolve_running = false;
+
+        return;
+      }
+
+      if(
+        data.error
+      )
+      {
+        lastError =
+          String(data.error);
+      }
+    }
+    catch(resolveError)
+    {
+      /* 次の候補へ */
+    }
+  }
+
+  QR_resolve_running = false;
+
+  QR_pin_status.textContent =
+    lastError
+    + "\n(PC側で接続を作り直して、表示中のPINを確認してください。)";
+  QR_pin_status.style.color = "red";
 }
 
 
@@ -1938,6 +2170,56 @@ if(QR_pairing_code_input !== null)
       {
         event.preventDefault();
         QR_connectWithPin();
+      }
+    }
+  );
+}
+
+if(QR_reader_mode_select !== null)
+{
+  QR_reader_mode_select.addEventListener(
+    "change",
+    function()
+    {
+      const changedMode =
+        String(
+          QR_reader_mode_select.value || ""
+        ).trim();
+
+      if(
+        changedMode ===
+        ""
+      )
+      {
+        return;
+      }
+
+      QR_reader_mode =
+        changedMode;
+
+      QR_applyReaderMode();
+
+      if(
+        QR_pairing_code_area !== null
+      )
+      {
+        QR_pairing_code_area.style.display =
+          (changedMode === "register" || changedMode === "visit")
+            ? ""
+            : "none";
+      }
+
+      /*
+       * PINが入力済みなら
+       * 切り替え先で再照会する。
+       */
+      if(QR_hasValidPairingCode())
+      {
+        QR_pin_status.textContent =
+          "接続先を切り替えました。接続情報を再取得しています...";
+        QR_pin_status.style.color = "#8a5a00";
+
+        void QR_resolveConnectionByPin();
       }
     }
   );
