@@ -137,7 +137,7 @@ const QR_QRcode_reader_pre_id_check_text =
   /^P\d{2}-\d{5}$/;
 
 const QR_QRcode_reader_qr_card_check_text =
-  /^1SCJ\|user\|U\d{2}-\d{5}\|[0-9a-fA-F]{64}$/i;
+  /^1SCJ\|user\|[UT]\d{2}-\d{5}\|[0-9a-fA-F]{64}$/i;
 
 const QR_QRcode_reader_staff_card_check_text =
   /^1SCJ\|staff\|([SA]\d{2}-\d{5})\|[0-9a-fA-F]{64}$/i;
