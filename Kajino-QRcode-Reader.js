@@ -760,7 +760,8 @@ async function QR_resolveConnectionByPin()
     }
     catch(resolveError)
     {
-      /* 次の候補へ */
+      lastError =
+        "接続先との通信が失敗しました。";
     }
   }
 
