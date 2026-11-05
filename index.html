@@ -284,6 +284,7 @@
       hidden
     ></iframe>
 
+    <p><label><input type="checkbox" id="QR_feedback_sound" checked> 読み取り音</label> <label><input type="checkbox" id="QR_feedback_vibration" checked> バイブ</label></p>
     <form
       id="QR_send_form"
       method="post"
@@ -400,7 +401,7 @@
       try
       {
         statusArea.textContent =
-          "QRライブラリを読み込んでいます...";
+          "カメラを準備しています...";
 
         statusArea.style.color =
           "black";
@@ -422,10 +423,10 @@
         }
 
         statusArea.textContent =
-          "QR制御JavaScriptを読み込んでいます...";
+          "リーダーを準備しています...";
 
         await loadExternalScript(
-          "./Kajino-QRcode-Reader.js?v=14"
+          "./Kajino-QRcode-Reader.js?v=15"
         );
 
         if(
@@ -439,7 +440,7 @@
         }
 
         statusArea.textContent =
-          "JavaScriptを正常に読み込みました。";
+          "準備ができました。";
 
         statusArea.style.color =
           "green";

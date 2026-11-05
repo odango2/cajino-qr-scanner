@@ -137,7 +137,7 @@ const QR_QRcode_reader_pre_id_check_text =
   /^P\d{2}-\d{5}$/;
 
 const QR_QRcode_reader_qr_card_check_text =
-  /^1SCJ\|user\|U\d{2}-\d{5}\|[0-9a-fA-F]{64}$/i;
+  /^(?:1SCJ\|user\|)?[UT]\d{2}-\d{5}\|[0-9a-fA-F]{64}$/i;
 
 const QR_QRcode_reader_duplicate_wait =
   2000;
@@ -502,39 +502,49 @@ function QR_hasValidPairingCode()
 }
 
 
-function QR_connectWithPin()
-{
-  const enteredPin =
-    String(
-      QR_pairing_code_input.value || ""
-    ).trim();
-
-  if(!QR_hasValidConnection())
-  {
-    QR_pin_status.textContent =
-      "接続先情報がありません。PC画面から発行したリーダーURLを開いてください。";
-    QR_pin_status.style.color = "red";
-    return;
-  }
-
-  if(!/^\d{6}$/.test(enteredPin))
-  {
-    QR_pin_status.textContent =
-      "PINは6桁の数字で入力してください。";
-    QR_pin_status.style.color = "red";
-    return;
-  }
-
-  QR_pairing_code_value = enteredPin;
-  QR_pairing_code.textContent = enteredPin;
-  QR_connection_valid = true;
-  QR_pin_status.textContent =
-    "PINを設定しました。QRコードを読み取るとPCへ送信します。";
-  QR_pin_status.style.color = "green";
-  QR_connection_status.textContent =
-    (QR_reader_mode === "register" ? "利用者登録" : QR_reader_mode === "visit" ? "入場受付" : "operation")
-    + "画面の接続情報を読み込みました。";
-  QR_connection_status.style.color = "green";
+let QR_connectionAttempt_ = 0;
+async function QR_connectWithPin() {
+  const attempt = ++QR_connectionAttempt_;
+  QR_prepareFeedback_();
+  const pin = String(QR_pairing_code_input.value || '').trim();
+  if (!/^\d{6}$/.test(pin)) { QR_pin_status.textContent = 'PINは6桁の数字で入力してください。'; return; }
+  QR_connection_valid = false;
+  QR_pin_status.textContent = '接続先を確認しています…';
+  try {
+    const params = new URLSearchParams(window.location.search);
+    let urls = [];
+    try { urls = JSON.parse(params.get('resolverUrls') || '[]'); } catch (_) {}
+    if (!Array.isArray(urls)) urls = [];
+    if (QR_receiver_url) urls.unshift(QR_receiver_url);
+    if (!urls.length) {
+      const config = await fetch('./connections.json', {cache: 'no-store'});
+      urls = await config.json();
+    }
+    urls = [...new Set(urls)].filter(QR_isAllowedReceiverUrl).slice(0, 4);
+    const results = await Promise.all(urls.map(async url => {
+      try {
+        const result = await QR_postJson(url, {action: 'resolveConnection', pairingCode: pin});
+        return (result.ok === true || result.success === true) && result.sessionId ? result : null;
+      } catch (_) { return null; }
+    }));
+    if (attempt !== QR_connectionAttempt_) return;
+    const matches = results.filter(Boolean).filter((r, i, all) => all.findIndex(x => x && x.sessionId === r.sessionId) === i);
+    if (matches.length !== 1) throw new Error(matches.length ? '同じPINの接続が複数あります。PCで接続し直してください。' : '有効なPINが見つかりません。PINの期限と公開設定を確認してください。');
+    const match = matches[0];
+    if (!QR_isAllowedReceiverUrl(match.receiverUrl) || !/^[a-z0-9_-]{3,40}$/i.test(match.stationId)) throw new Error('接続情報が正しくありません。');
+    QR_receiver_url = match.receiverUrl;
+    QR_session_id = match.sessionId;
+    QR_station_id_value = match.stationId;
+    QR_reader_mode = match.pageType === 'register' ? 'register' : match.pageType === 'operation' ? 'operation' : 'visit';
+    QR_pairing_code_value = pin;
+    QR_pairing_code.textContent = pin;
+    QR_station_id.textContent = match.stationId;
+    QR_applyReaderMode();
+    QR_connection_valid = true;
+    QR_connection_status.textContent = ({register: '利用者登録', operation: 'コイン操作', visit_in: '入場受付', visit_out: '退場受付', visit: '入退場受付'}[match.pageType] || '入退場受付') + 'に接続しました。';
+    QR_connection_status.style.color = 'black';
+    QR_pin_status.textContent = 'QRコードを読み取ってください。';
+  } catch (error) { if (attempt === QR_connectionAttempt_) { QR_pin_status.textContent = error.message; QR_pin_status.style.color = 'red'; } }
 }
 
 
@@ -631,6 +641,7 @@ function QR_isValidRegisterPayload(
     );
 
   if(
+    /^1SCJ\|staff\|[SA]\d{2}-\d{5}\|[0-9a-f]{64}$/i.test(normalizedPayload) ||
     QR_QRcode_reader_pre_id_check_text
       .test(
         normalizedPayload.toUpperCase()
@@ -698,62 +709,16 @@ function QR_QRcode_reader_onScanSuccess(
     return;
   }
 
-  if(
-    QR_reader_mode === "operation"
-  )
-  {
-    if(
-      !QR_QRcode_reader_user_id_check_text
-        .test(
-          comparisonText
-        )
-    )
-    {
-      QR_QRcode_reader_result.textContent =
-        "読み取り結果：Error："
-        + "1SシステムのID形式ではありません。";
-
-      QR_QRcode_reader_result.style.color =
-        "red";
-
-      QR_QRcode_reader_result_text =
-        null;
-
-      QR_showSendStatus(
-        "形式が異なるため、PCへ送信していません。",
-        "red"
-      );
-
-      return;
-    }
-
-    QR_QRcode_reader_result_text =
-      comparisonText;
-
-    QR_QRcode_reader_result.textContent =
-      "読み取り結果："
-      + comparisonText;
-
-    QR_QRcode_reader_result.style.color =
-      "green";
-
-    QR_showLastScan(
-      comparisonText
-    );
-
-    QR_sendScannedPayload(
-      comparisonText,
-      false
-    );
-
-    console.log(
-      "[QR operation scan success]",
-      comparisonText
-    );
-
+  if (QR_reader_mode === 'operation') {
+    const accepted = /^[USAT]\d{2}-\d{5}$/i.test(normalizedText) ||
+      /^(?:1SCJ\|user\|)?[UT]\d{2}-\d{5}\|[0-9a-f]{64}$/i.test(normalizedText) ||
+      /^1SCJ\|staff\|[SA]\d{2}-\d{5}\|[0-9a-f]{64}$/i.test(normalizedText);
+    if (!accepted) { QR_showSendStatus('利用者またはスタッフのQRカードを読み取ってください。', 'red'); return; }
+    QR_QRcode_reader_result_text = normalizedText;
+    QR_showLastScan(normalizedText);
+    QR_sendScannedPayload(normalizedText, false);
     return;
   }
-
   if(
     QR_reader_mode === "visit"
   )
@@ -763,13 +728,14 @@ function QR_QRcode_reader_onScanSuccess(
         comparisonText
       );
 
+    const isStaffCard = /^1SCJ\|staff\|[SA]\d{2}-\d{5}\|[0-9a-f]{64}$/i.test(normalizedText);
     const isVisitCard =
       QR_QRcode_reader_qr_card_check_text.test(
         normalizedText
       );
 
     if(
-      !isVisitUserId
+      !isVisitUserId && !isStaffCard
       &&
       !isVisitCard
     )
@@ -797,7 +763,7 @@ function QR_QRcode_reader_onScanSuccess(
 
     QR_QRcode_reader_result.textContent =
       "読み取り結果："
-      + normalizedText;
+      + QR_describePayload_(normalizedText);
 
     QR_QRcode_reader_result.style.color =
       "green";
@@ -813,7 +779,7 @@ function QR_QRcode_reader_onScanSuccess(
 
     console.log(
       "[QR visit scan success]",
-      normalizedText
+      QR_describePayload_(normalizedText)
     );
 
     return;
@@ -850,7 +816,7 @@ function QR_QRcode_reader_onScanSuccess(
 
   QR_QRcode_reader_result.textContent =
     "読み取り結果："
-    + normalizedText;
+    + QR_describePayload_(normalizedText);
 
   QR_QRcode_reader_result.style.color =
     "green";
@@ -866,7 +832,7 @@ function QR_QRcode_reader_onScanSuccess(
 
   console.log(
     "[QR register scan success]",
-    normalizedText
+    QR_describePayload_(normalizedText)
   );
 }
 
@@ -875,7 +841,7 @@ function QR_QRcode_reader_onScanSuccess(
 // GASへの送信
 // ==================================================
 
-function QR_sendScannedPayload(
+async function QR_sendScannedPayload(
   rawPayload,
   forceSend
 )
@@ -1019,7 +985,10 @@ function QR_sendScannedPayload(
 
   try
   {
-    QR_send_form.submit();
+    const response = await QR_postJson(QR_receiver_url, {action: 'submitScan', sessionId: QR_session_id,
+      stationId: QR_station_id_value, pairingCode: QR_pairing_code_value, payload: payload, userId: payload, source: QR_source});
+    if (response.success !== true) throw new Error(response.error || response.message || '受信先で拒否されました。');
+    QR_notifyScanAccepted_();
 
     QR_showSendStatus(
       "QRデータをPCへ送信しました。",
@@ -1038,7 +1007,7 @@ function QR_sendScannedPayload(
     );
 
     QR_showSendStatus(
-      "PCへの送信処理に失敗しました。",
+      "送信を確認できません。" + error.message,
       "red"
     );
   }
@@ -1098,7 +1067,7 @@ function QR_showLastScan(
   }
 
   QR_last_scan_id.textContent =
-    payload;
+    QR_describePayload_(payload);
 
   QR_last_scan_area.style.display =
     "block";
@@ -1788,6 +1757,14 @@ function QR_QRcode_reader_forceStopTracks()
 
 function QR_initialize()
 {
+  for (const kind of ['sound','vibration']) {
+    const input = document.getElementById('QR_feedback_' + kind);
+    if (!input) continue;
+    try { input.checked = localStorage.getItem('QR_feedback_' + kind) !== 'false'; } catch (_) {}
+    input.addEventListener('change', function() {
+      try { localStorage.setItem('QR_feedback_' + kind, String(input.checked)); } catch (_) {}
+    });
+  }
   QR_QRcode_reader_button.textContent =
     "読み取り開始　＊カメラ停止中";
 
@@ -1817,6 +1794,7 @@ QR_QRcode_reader_button.addEventListener(
   "click",
   function()
   {
+    QR_prepareFeedback_();
     void QR_QRcode_reader_Scanner_on_off();
   }
 );
@@ -1889,3 +1867,40 @@ window.addEventListener(
 
 
 QR_initialize();
+
+async function QR_postJson(url, data) {
+  const started = performance.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const response = await fetch(url, {method: 'POST', body: new URLSearchParams(data), signal: controller.signal, credentials: 'omit'});
+    if (!response.ok) throw new Error('HTTP ' + response.status + '（公開設定を確認）');
+    return await response.json();
+  } finally { clearTimeout(timer); console.info('[QR request ms]', Math.round(performance.now() - started)); }
+}
+
+let QR_audioContext_ = null;
+function QR_describePayload_(payload) {
+  const text = String(payload || '');
+  const staff = /^1SCJ\|staff\|([SA]\d{2}-\d{5})\|/i.exec(text);
+  if (staff) return 'スタッフカード：' + staff[1].toUpperCase();
+  const user = /^(?:1SCJ\|user\|)?([UT]\d{2}-\d{5})\|/i.exec(text);
+  return user ? '利用者カード：' + user[1].toUpperCase() : text;
+}
+function QR_prepareFeedback_() {
+  try {
+    const Audio = window.AudioContext || window.webkitAudioContext;
+    if (Audio && !QR_audioContext_) QR_audioContext_ = new Audio();
+    if (QR_audioContext_ && QR_audioContext_.state === 'suspended') void QR_audioContext_.resume().catch(function() {});
+  } catch (_) { /* Reading and delivery must work without sound support. */ }
+}
+function QR_notifyScanAccepted_() {
+  try {
+    if (document.getElementById('QR_feedback_vibration')?.checked && typeof navigator.vibrate === 'function') navigator.vibrate(80);
+    if (!document.getElementById('QR_feedback_sound')?.checked || !QR_audioContext_ || QR_audioContext_.state !== 'running') return;
+    const tone = QR_audioContext_.createOscillator(), gain = QR_audioContext_.createGain();
+    tone.frequency.value = 880; gain.gain.value = 0.04;
+    tone.connect(gain); gain.connect(QR_audioContext_.destination);
+    tone.start(); tone.stop(QR_audioContext_.currentTime + 0.08);
+  } catch (_) { /* Device feedback is optional; server acknowledgement remains visible. */ }
+}
