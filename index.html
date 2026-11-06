@@ -226,7 +226,7 @@
             来場受付・退場（visit）
           </option>
           <option value="operation">
-            コイン操作（operation）
+            STAR操作（operation）
           </option>
         </select>
       </div>
@@ -242,7 +242,7 @@
       正しい形式のユーザーIDを読み取ると、
       operation画面へ送信します。
       QRを読み取っただけでは、
-      コインの加算や減算は実行されません。
+      STARの加算や減算は実行されません。
     </p>
 
     <p id="QR_script_status">
@@ -452,7 +452,7 @@
           "リーダーを準備しています...";
 
         await loadExternalScript(
-          "./Kajino-QRcode-Reader.js?v=16"
+          "./Kajino-QRcode-Reader.js?v=17"
         );
 
         if(

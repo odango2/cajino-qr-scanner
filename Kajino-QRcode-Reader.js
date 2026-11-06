@@ -493,7 +493,7 @@ function QR_applyReaderMode()
         + "正しい形式のユーザーIDを読み取ると、"
         + "operation画面へ送信します。"
         + "QRを読み取っただけでは、"
-        + "コインの加算や減算は実行されません。";
+        + "STARの加算や減算は実行されません。";
     }
   }
 }
@@ -572,7 +572,7 @@ async function QR_connectWithPin() {
     QR_station_id.textContent = match.stationId;
     QR_applyReaderMode();
     QR_connection_valid = true;
-    QR_connection_status.textContent = ({register: '利用者登録', operation: 'コイン操作', visit_in: '入場受付', visit_out: '退場受付', visit: '入退場受付'}[match.pageType] || '入退場受付') + 'に接続しました。';
+    QR_connection_status.textContent = ({register: '利用者登録', operation: 'STAR操作', visit_in: '入場受付', visit_out: '退場受付', visit: '入退場受付'}[match.pageType] || '入退場受付') + 'に接続しました。';
     QR_connection_status.style.color = 'black';
     QR_pin_status.textContent = 'QRコードを読み取ってください。';
   } catch (error) { if (attempt === QR_connectionAttempt_) { QR_pin_status.textContent = error.message; QR_pin_status.style.color = 'red'; } }
