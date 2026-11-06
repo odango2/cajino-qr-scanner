@@ -125,6 +125,16 @@ const QR_reader_notice =
     "QR_reader_notice"
   );
 
+const QR_reader_mode_entry =
+  document.getElementById(
+    "QR_reader_mode_entry"
+  );
+
+const QR_reader_mode_select =
+  document.getElementById(
+    "QR_reader_mode_select"
+  );
+
 
 // ==================================================
 // 定数
@@ -138,6 +148,9 @@ const QR_QRcode_reader_pre_id_check_text =
 
 const QR_QRcode_reader_qr_card_check_text =
   /^(?:1SCJ\|user\|)?[UT]\d{2}-\d{5}\|[0-9a-fA-F]{64}$/i;
+
+const QR_QRcode_reader_staff_card_check_text =
+  /^1SCJ\|staff\|([SA]\d{2}-\d{5})\|[0-9a-fA-F]{64}$/i;
 
 const QR_QRcode_reader_duplicate_wait =
   2000;
@@ -337,6 +350,12 @@ function QR_loadConnection()
 
   QR_applyReaderMode();
 
+  if(QR_reader_mode_select !== null)
+  {
+    QR_reader_mode_select.value =
+      QR_reader_mode;
+  }
+
   if(!QR_hasValidConnection())
   {
     QR_connection_valid =
@@ -344,14 +363,20 @@ function QR_loadConnection()
 
     QR_connection_status.textContent =
       "PCとの接続情報が不足しています。\n"
-      + "接続元の登録画面またはoperation画面から"
-      + "発行された接続URLを開いてください。";
+      + "PC側で発行された接続URLを開くか、"
+      + "PC画面に表示された6桁のPINを入力すれば接続できます。";
 
     QR_connection_status.style.color =
       "red";
 
+    if(QR_reader_mode_entry !== null)
+    {
+      QR_reader_mode_entry.style.display =
+        "";
+    }
+
     QR_showSendStatus(
-      "接続されていないため、読取結果は送信されません。",
+      "接続されていないため、読取結果は送信されません。PINを設定して接続してください。",
       "red"
     );
 
@@ -502,6 +527,12 @@ function QR_hasValidPairingCode()
 }
 
 
+/*
+ * PINだけでの遅れ接続(RESCUE接続)に
+ * 使う受信側URLの候補。
+ * (ページURLに接続情報が無い場合も
+ *  PINさえあればPCと接続できる)
+ */
 let QR_connectionAttempt_ = 0;
 async function QR_connectWithPin() {
   const attempt = ++QR_connectionAttempt_;
@@ -640,6 +671,21 @@ function QR_isValidRegisterPayload(
       payload
     );
 
+  /*
+   * ID単体のQR(U/S/A/T)も
+   * 登録モードで受け付ける
+   * (A00-00000形式のスキャンも可能にする)。
+   */
+  if(
+    QR_QRcode_reader_user_id_check_text
+      .test(
+        normalizedPayload.toUpperCase()
+      )
+  )
+  {
+    return true;
+  }
+
   if(
     QR_QRcode_reader_user_id_check_text.test(normalizedPayload.toUpperCase()) ||
     /^1SCJ\|staff\|[SA]\d{2}-\d{5}\|[0-9a-f]{64}$/i.test(normalizedPayload) ||
@@ -654,6 +700,21 @@ function QR_isValidRegisterPayload(
 
   if(
     QR_QRcode_reader_qr_card_check_text
+      .test(
+        normalizedPayload
+      )
+  )
+  {
+    return true;
+  }
+
+  /*
+   * スタッフQRカードも受け付ける
+   * (target=operatorでスキャン時、
+   *  受付ページが担当者設定に使う)。
+   */
+  if(
+    QR_QRcode_reader_staff_card_check_text
       .test(
         normalizedPayload
       )
@@ -748,6 +809,9 @@ function QR_QRcode_reader_onScanSuccess(
       QR_QRcode_reader_result.style.color =
         "red";
 
+      QR_flashReader(false);
+      QR_alert(false);
+
       QR_QRcode_reader_result_text =
         null;
 
@@ -768,6 +832,7 @@ function QR_QRcode_reader_onScanSuccess(
 
     QR_QRcode_reader_result.style.color =
       "green";
+
 
     QR_showLastScan(
       normalizedText
@@ -799,6 +864,9 @@ function QR_QRcode_reader_onScanSuccess(
     QR_QRcode_reader_result.style.color =
       "red";
 
+    QR_flashReader(false);
+    QR_alert(false);
+
     QR_QRcode_reader_result_text =
       null;
 
@@ -813,8 +881,26 @@ function QR_QRcode_reader_onScanSuccess(
     return;
   }
 
-  QR_QRcode_reader_result_text =
+  /*
+   * ID単体のQRは大文字化して送る
+   * (サーバー側の形式チェックが大文字前提)。
+   * QRカードの鍵(hex)は大小を保持する。
+   */
+  let registerSendText =
     normalizedText;
+
+  if(
+    QR_QRcode_reader_user_id_check_text.test(
+      normalizedText.toUpperCase()
+    )
+  )
+  {
+    registerSendText =
+      normalizedText.toUpperCase();
+  }
+
+  QR_QRcode_reader_result_text =
+    registerSendText;
 
   QR_QRcode_reader_result.textContent =
     "読み取り結果："
@@ -823,12 +909,13 @@ function QR_QRcode_reader_onScanSuccess(
   QR_QRcode_reader_result.style.color =
     "green";
 
+
   QR_showLastScan(
-    normalizedText
+    registerSendText
   );
 
   QR_sendScannedPayload(
-    normalizedText,
+    registerSendText,
     false
   );
 
@@ -1835,6 +1922,56 @@ if(QR_pairing_code_input !== null)
   );
 }
 
+if(QR_reader_mode_select !== null)
+{
+  QR_reader_mode_select.addEventListener(
+    "change",
+    function()
+    {
+      const changedMode =
+        String(
+          QR_reader_mode_select.value || ""
+        ).trim();
+
+      if(
+        changedMode ===
+        ""
+      )
+      {
+        return;
+      }
+
+      QR_reader_mode =
+        changedMode;
+
+      QR_applyReaderMode();
+
+      if(
+        QR_pairing_code_area !== null
+      )
+      {
+        QR_pairing_code_area.style.display =
+          (changedMode === "register" || changedMode === "visit")
+            ? ""
+            : "none";
+      }
+
+      /*
+       * PINが入力済みなら
+       * 切り替え先で再照会する。
+       */
+      if(QR_hasValidPairingCode())
+      {
+        QR_pin_status.textContent =
+          "接続先を切り替えました。接続情報を再取得しています...";
+        QR_pin_status.style.color = "#8a5a00";
+
+        void QR_connectWithPin();
+      }
+    }
+  );
+}
+
 QR_resend_button.addEventListener(
   "click",
   QR_resendLastScan
@@ -1897,6 +2034,7 @@ function QR_prepareFeedback_() {
   } catch (_) { /* Reading and delivery must work without sound support. */ }
 }
 function QR_notifyScanAccepted_() {
+  QR_flashReader(true);
   try {
     if (document.getElementById('QR_feedback_vibration')?.checked && typeof navigator.vibrate === 'function') navigator.vibrate(80);
     if (!document.getElementById('QR_feedback_sound')?.checked || !QR_audioContext_ || QR_audioContext_.state !== 'running') return;
@@ -1905,4 +2043,166 @@ function QR_notifyScanAccepted_() {
     tone.connect(gain); gain.connect(QR_audioContext_.destination);
     tone.start(); tone.stop(QR_audioContext_.currentTime + 0.08);
   } catch (_) { /* Device feedback is optional; server acknowledgement remains visible. */ }
+}
+
+// ==================================================
+// 枠色とアラート(音・バイブ)
+// ==================================================
+
+let QR_flashReader_timer =
+  null;
+
+let QR_alert_audio_context =
+  null;
+
+
+/**
+ * 読み取り結果をカメラ枠の色で伝える。
+ * 成功=緑 / 失敗=赤。0.8秒で元に戻す。
+ */
+function QR_flashReader(
+  success
+)
+{
+  const cameraBox =
+    document.getElementById(
+      "QR_QRcode_reader"
+    );
+
+  if(
+    cameraBox === null
+  )
+  {
+    return;
+  }
+
+  cameraBox.style.borderColor =
+    success
+      ? "green"
+      : "red";
+
+  if(
+    QR_flashReader_timer !== null
+  )
+  {
+    clearTimeout(
+      QR_flashReader_timer
+    );
+  }
+
+  QR_flashReader_timer =
+    setTimeout(
+      function()
+      {
+        cameraBox.style.borderColor =
+          "#333";
+      },
+      800
+    );
+}
+
+
+/**
+ * 成功=高音1回、失敗=低音1回。
+ * 大音量にしない(店内BGMや本人装備を
+ * 考慮)。振動が使える端末では併用。
+ */
+function QR_alert(
+  success
+)
+{
+  try
+  {
+    if(
+      navigator.vibrate
+    )
+    {
+      navigator.vibrate(
+        success
+          ? 120
+          : [
+              100,
+              60,
+              100
+            ]
+      );
+    }
+  }
+  catch(error)
+  {
+    /* 振動はできなくても続行 */
+  }
+
+  try
+  {
+    const audioContext =
+      window.AudioContext
+      || window.webkitAudioContext;
+
+    if(
+      !audioContext
+    )
+    {
+      return;
+    }
+
+    if(
+      QR_alert_audio_context === null
+    )
+    {
+      QR_alert_audio_context =
+        new audioContext();
+    }
+
+    if(
+      QR_alert_audio_context.state
+        === "suspended"
+    )
+    {
+      QR_alert_audio_context
+        .resume();
+    }
+
+    const oscillator =
+      QR_alert_audio_context
+        .createOscillator();
+
+    const gain =
+      QR_alert_audio_context
+        .createGain();
+
+    oscillator.type =
+      "sine";
+
+    oscillator.frequency.value =
+      success
+        ? 1320
+        : 440;
+
+    gain.gain.value =
+      0.1;
+
+    oscillator.connect(gain);
+
+    gain.connect(
+      QR_alert_audio_context.destination
+    );
+
+    oscillator.start();
+
+    gain.gain.exponentialRampToValueAtTime(
+      0.0001,
+      QR_alert_audio_context.currentTime
+        + 0.25
+    );
+
+    oscillator.stop(
+      QR_alert_audio_context.currentTime
+        + 0.25
+    );
+  }
+  catch(error)
+  {
+    /* 音はできなくても続行 */
+  }
 }
