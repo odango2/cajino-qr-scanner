@@ -641,6 +641,7 @@ function QR_isValidRegisterPayload(
     );
 
   if(
+    QR_QRcode_reader_user_id_check_text.test(normalizedPayload.toUpperCase()) ||
     /^1SCJ\|staff\|[SA]\d{2}-\d{5}\|[0-9a-f]{64}$/i.test(normalizedPayload) ||
     QR_QRcode_reader_pre_id_check_text
       .test(
@@ -802,9 +803,10 @@ function QR_QRcode_reader_onScanSuccess(
       null;
 
     QR_showSendStatus(
-      "仮登録QRコードはP00-00000形式、"
-      + "QRカードは1SCJ|user|U00-00000|"
-      + "64文字の16進数形式です。",
+      "仮登録はP00-00000、ID単体はU/S/A/T00-00000形式です。"
+      + "利用者カードはU00-00000|64文字の16進数Hash"
+      + "（旧形式1SCJ|user|ID|Hashも可）、"
+      + "スタッフカードは1SCJ|staff|S00-00000|64文字の16進数鍵です。",
       "red"
     );
 
